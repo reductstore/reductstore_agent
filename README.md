@@ -24,10 +24,6 @@ recorder:
   storage:
     backend: reductstore
     endpoint: "http://localhost:8383"
-  global:
-    resource_limits:
-      max_cpu_percent: 50
-      max_mem_mb: 512
   pipelines:
     telemetry:
       target:
@@ -65,6 +61,10 @@ Other examples include:
 * `logs` for `/rosout` and diagnostics
 
 Dynamic labels are extracted from published messages (e.g., mission metadata) and attached per record.
+
+## Running ReductStore
+
+To use this agent, you must have a running instance of ReductStore. You can start a local instance using Docker or install it via Snap or from binaries. Refer to the official guide for details: [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started)
 
 ## Installing
 
