@@ -1,5 +1,8 @@
 # ros2-reduct-agent
 
+[![Community](https://img.shields.io/discourse/status?server=https%3A%2F%2Fcommunity.reduct.store
+)](https://community.reduct.store/signup)
+
 ## Project Description
 
 **ros2-reduct-agent** is a ROS 2 node that records selected topics into [ReductStore](https://www.reduct.store/), a high-performance storage and streaming solution. ReductStore is an ELT-based system for robotics and industrial IoT data acquisition. It captures raw data, ingests and streams data of any size—images, sensor readings, logs, files, ROS bags—and stores it with time indexing and labels for ultra-fast retrieval and management.
