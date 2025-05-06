@@ -41,6 +41,7 @@ recorder:
     telemetry:
       entry: telemetry # entry name in ReductStore
       output_format: mcap # only mcap is supported as of now
+      # NOTE: All topics are recorded continuously. Topic filtering will be supported in future versions.
       split:
         max_duration_s: 300
         max_size_bytes: 250_000_000
