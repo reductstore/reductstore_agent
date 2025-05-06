@@ -29,7 +29,7 @@ This agent is tested with:
 
 ## Structure
 
-The agent is configured using a YAML file. Each pipeline is an independent logging unit:
+The agent is configured using a YAML file. Each pipeline is an independent logging unit (only one type of pipeline is supported at the moment where all topics are recorded continuously without filtering).
 
 ```yaml
 recorder:
