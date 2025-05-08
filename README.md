@@ -1,18 +1,19 @@
-# ros2-reduct-agent
+# ros2_reduct_agent
 
 [![Community](https://img.shields.io/discourse/status?server=https%3A%2F%2Fcommunity.reduct.store
 )](https://community.reduct.store/signup)
-
-## Project Description
 
 **ros2-reduct-agent** is a ROS 2 node that records selected topics into [ReductStore](https://www.reduct.store/), a high-performance storage and streaming solution. ReductStore is an ELT-based system for robotics and industrial IoT data acquisition. It ingests and streams time-series data of any size—images, sensor readings, logs, files, MCAP, ROS bags—and stores it with time indexing and labels for ultra-fast retrieval and management.
 
 This agent is fully configurable via YAML and designed to solve storage, bandwidth, and workflow limitations commonly found in field robotics. It streams data to ReductStore in near real-time with optional compression, splitting, dynamic labeling, and per-pipeline controls.
 
+
+- [Container Images](#container-images)
+- [ros2_reduct_agent](#ros2_reduct_agent)
+
 ## System Requirements
 
 To use this agent, you must have a running instance of ReductStore. You can start a local instance using Docker, install it via Snap or from binaries. Refer to the official guide for setup instructions: [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started)
-
 
 This agent is tested with:
 - ROS 2: Jazzy Jalisco
@@ -70,6 +71,41 @@ Each pipeline has the following parameters:
 * `output_format`: The format of the output data. Currently, only `mcap` is supported.
 * `split`: A dictionary that specifies how to split the data. It can be based on maximum duration or size. The `max_duration_s` key specifies the maximum duration in seconds for each split, while the `max_size_bytes` key specifies the maximum size in bytes for each split.
 
+### Container Images
+
+| Description | Image:Tag | Default Command |
+| --- | --- | -- |
+|  |  |  |
+
+### Subscribed Topics
+
+| Topic | Type | Description |
+| --- | --- | --- |
+|  |  |  |
+
+### Published Topics
+
+| Topic | Type | Description |
+| --- | --- | --- |
+|  |  |  |
+
+### Services
+
+| Service | Type | Description |
+| --- | --- | --- |
+|  |  |  |
+
+### Actions
+
+| Action | Type | Description |
+| --- | --- | --- |
+|  |  |  |
+
+### Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+|  |  |  |
 
 ## Links
 

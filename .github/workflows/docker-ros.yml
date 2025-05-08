@@ -1,0 +1,12 @@
+name: docker-ros
+on: push
+jobs:
+  jazzy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ika-rwth-aachen/docker-ros@main
+        with:
+          platform: amd64
+          target: dev,run
+          base-image: rwthika/ros2:jazzy
+          command: ros2 run ros2_reduct_agent ros2_reduct_agent

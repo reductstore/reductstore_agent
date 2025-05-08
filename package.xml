@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+
+  <name>ros2_reduct_agent</name>
+  <version>0.0.0</version>
+  <description>ROS2 recorder node that logs selected topics to ReductStore, with YAML-driven pipelines (mcap/raw, compression, splitting, down-sampling, labelling).</description>
+
+  <maintainer email="info@reduct.store">Anthony Cavin</maintainer>
+  <author email="info@reduct.store">Anthony Cavin</author>
+
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+
+</package>
