@@ -53,13 +53,21 @@ recorder:
 Build and run in a ROS 2 workspace:
 
 ```bash
+# 1. Clone your repo and enter the workspace
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
 git clone https://github.com/reductstore/ros2-reduct-agent.git
 cd ..
+
+# 2. Install system dependencies
+rosdep install --from-paths src --ignore-src -r -y
+
+# 3. Build your package
 colcon build --packages-select ros2_reduct_agent
+
+# 4. Source the workspace and run your node
 source install/local_setup.bash
-ros2 run ros2_reduct_agent recorder_node --ros-args --params-file ./config.yaml
+ros2 run ros2_reduct_agent recorder --ros-args --params-file ./config.yaml
 ```
 
 ## Configuration
