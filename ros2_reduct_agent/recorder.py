@@ -4,8 +4,6 @@ from collections import defaultdict
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Int32
-from rclpy.node import Node
 from rclpy.qos import QoSProfile
 
 class Recorder(Node):
