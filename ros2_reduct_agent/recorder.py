@@ -135,16 +135,6 @@ class Recorder(Node):
             self.get_logger().info(f"Message received on '{topic_name}' [{msg_type_str}]")
         return callback
 
-    def topic_callback(self, msg: Int32):
-        """Processes messages received by a subscriber
-
-        Args:
-            msg (Int32): message
-        """
-
-        self.get_logger().info(f"Message received: '{msg.data}'")
-
-
 def main():
 
     rclpy.init()

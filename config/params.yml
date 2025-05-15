@@ -9,5 +9,5 @@
         include_topics:
           - /recorder/input
         split:
-          max_duration_s: 300
-          max_size_bytes: 250000000
+          max_duration_s: 5
+          max_size_bytes: 100

@@ -17,7 +17,7 @@ setup(
         ),
         (os.path.join("share", package_name, "config"), glob("config/*")),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "mcap"],
     zip_safe=True,
     maintainer="Anthony",
     maintainer_email="info@reduct.store",
