@@ -23,7 +23,7 @@ setup(
     maintainer_email="info@reduct.store",
     description="ROS2 Reduct Agent",
     license="MIT",
-    tests_require=["pytest"],
+    # tests_require=["pytest"],
     entry_points={
         "console_scripts": ["recorder = ros2_reduct_agent.recorder:main"],
     },
