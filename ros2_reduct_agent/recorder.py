@@ -1,11 +1,12 @@
+import importlib
 from typing import Any
 from collections import defaultdict
 
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int32
-from std_srvs.srv import SetBool
-
+from rclpy.node import Node
+from rclpy.qos import QoSProfile
 
 class Recorder(Node):
 
@@ -82,21 +83,57 @@ class Recorder(Node):
                 self.get_logger().warn(f"[pipelines] '{name}' should be a list of strings. Got: {value}")
 
     def setup(self):
-        """Sets up subscribers to configure the node"""
+        """Subscribe only to topics listed in pipelines' include_topics, with correct types."""
+        self.subscribers = []
+        ignore_topics = {"/rosout", "/parameter_events"}  # Add more if needed
 
-        # subscriber for handling incoming messages
-        self.subscriber = self.create_subscription(
-            Int32, "~/input", self.topic_callback, qos_profile=10
-        )
-        self.get_logger().info(f"Subscribed to '{self.subscriber.topic_name}'")
+        # Gather all unique (topic_name, type) pairs from all pipelines
+        topics_to_subscribe = set()
+        for pipeline in self.pipelines.values():
+            include_topics = pipeline.get("include_topics", [])
+            # Support both list of strings and list of dicts (for future extensibility)
+            for t in include_topics:
+                if isinstance(t, dict):
+                    topic_name = t.get("name")
+                    msg_type_str = t.get("type")
+                else:
+                    topic_name = t
+                    # Try to find type from ROS graph below
+                    msg_type_str = None
+                if topic_name and topic_name not in ignore_topics:
+                    topics_to_subscribe.add((topic_name, msg_type_str))
 
-        # service server for handling service calls
-        self.service_server = self.create_service(
-            SetBool, "~/service", self.service_callback
-        )
+        # Get all topic types from ROS graph
+        topic_types = dict(self.get_topic_names_and_types())
 
-        # timer for repeatedly invoking a callback to publish messages
-        self.timer = self.create_timer(5.0, self.timer_callback)
+        for topic_name, msg_type_str in topics_to_subscribe:
+            # If type is not specified in config, get it from ROS graph
+            if not msg_type_str:
+                types = topic_types.get(topic_name)
+                if not types:
+                    self.get_logger().warn(f"No type found for topic '{topic_name}'")
+                    continue
+                msg_type_str = types[0]
+            pkg, _, msg = msg_type_str.partition('/msg/')
+            try:
+                module = importlib.import_module(f"{pkg}.msg")
+                msg_type = getattr(module, msg)
+            except (ModuleNotFoundError, AttributeError):
+                self.get_logger().warn(f"Cannot import message type '{msg_type_str}' for topic '{topic_name}'")
+                continue
+            sub = self.create_subscription(
+                msg_type,
+                topic_name,
+                self.topic_callback_factory(topic_name, msg_type_str),
+                QoSProfile(depth=10)
+            )
+            self.subscribers.append(sub)
+            self.get_logger().info(f"Subscribed to '{topic_name}' [{msg_type_str}]")
+
+    def topic_callback_factory(self, topic_name, msg_type_str):
+        def callback(msg):
+            self.get_logger().info(f"Message received on '{topic_name}' [{msg_type_str}]")
+        return callback
 
     def topic_callback(self, msg: Int32):
         """Processes messages received by a subscriber
@@ -106,29 +143,6 @@ class Recorder(Node):
         """
 
         self.get_logger().info(f"Message received: '{msg.data}'")
-
-    def service_callback(
-        self, request: SetBool.Request, response: SetBool.Response
-    ) -> SetBool.Response:
-        """Processes service requests
-
-        Args:
-            request (SetBool.Request): service request
-            response (SetBool.Response): service response
-
-        Returns:
-            SetBool.Response: service response
-        """
-
-        self.get_logger().info("Received service request")
-        response.success = True
-
-        return response
-
-    def timer_callback(self):
-        """Processes timer triggers"""
-
-        self.get_logger().info("Timer triggered")
 
 
 def main():
