@@ -8,11 +8,11 @@ from std_msgs.msg import Int32
 from std_srvs.srv import SetBool
 
 
-class ReductAgent(Node):
+class Recorder(Node):
 
     def __init__(self):
         """Constructor"""
-        super().__init__("ros2_reduct_agent")
+        super().__init__("recorder")
 
         self.subscriber = None
 
@@ -168,7 +168,7 @@ class ReductAgent(Node):
 def main():
 
     rclpy.init()
-    node = ReductAgent()
+    node = Recorder()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
