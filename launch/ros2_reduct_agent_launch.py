@@ -27,7 +27,7 @@ def generate_launch_description():
     nodes = [
         Node(
             package="ros2_reduct_agent",
-            executable="ros2_reduct_agent",
+            executable="recorder",
             namespace=LaunchConfiguration("namespace"),
             name=LaunchConfiguration("name"),
             parameters=[LaunchConfiguration("params")],

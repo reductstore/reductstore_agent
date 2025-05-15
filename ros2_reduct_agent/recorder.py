@@ -1,14 +1,8 @@
-from typing import Any, Optional, Union
+from typing import Any
+from collections import defaultdict
 
 import rclpy
 from rclpy.node import Node
-import rclpy.exceptions
-from rcl_interfaces.msg import (
-    FloatingPointRange,
-    IntegerRange,
-    ParameterDescriptor,
-    SetParametersResult,
-)
 from std_msgs.msg import Int32
 from std_srvs.srv import SetBool
 
@@ -17,132 +11,78 @@ class Recorder(Node):
 
     def __init__(self):
         """Constructor"""
-        super().__init__("recorder")
+        super().__init__("recorder", allow_undeclared_parameters=True, 
+                         automatically_declare_parameters_from_overrides=True)
 
         self.subscriber = None
 
-        self.auto_reconfigurable_params: list[str] = []
-        self.param = self.declare_and_load_parameter(
-            name="param",
-            param_type=rclpy.Parameter.Type.DOUBLE,
-            description="TODO",
-            default=1.0,
-            from_value=0.0,
-            to_value=10.0,
-            step_value=0.1,
-        )
+        self.storage = self.load_and_validate_storage_config()
+        self.pipelines = self.parse_and_validate_pipeline_config()
 
         self.setup()
 
-    def declare_and_load_parameter(
-        self,
-        name: str,
-        param_type: rclpy.Parameter.Type,
-        description: str,
-        default: Optional[Any] = None,
-        add_to_auto_reconfigurable_params: bool = True,
-        is_required: bool = False,
-        read_only: bool = False,
-        from_value: Optional[Union[int, float]] = None,
-        to_value: Optional[Union[int, float]] = None,
-        step_value: Optional[Union[int, float]] = None,
-        additional_constraints: str = "",
-    ) -> Any:
-        """Declares and loads a ROS parameter
+    def load_and_validate_storage_config(self) -> dict[str, Any]:
+            """Load and validate required storage parameters from the parameter server."""
+            required_keys = ["url", "api_token", "bucket"]
+            config = {}
 
-        Args:
-            name (str): name
-            param_type (rclpy.Parameter.Type): parameter type
-            description (str): description
-            default (Optional[Any], optional): default value
-            add_to_auto_reconfigurable_params (bool, optional): enable reconfiguration of parameter
-            is_required (bool, optional): whether failure to load parameter will stop node
-            read_only (bool, optional): set parameter to read-only
-            from_value (Optional[Union[int, float]], optional): parameter range minimum
-            to_value (Optional[Union[int, float]], optional): parameter range maximum
-            step_value (Optional[Union[int, float]], optional): parameter range step
-            additional_constraints (str, optional): additional constraints description
+            for key in required_keys:
+                param = f"storage.{key}"
+                if not self.has_parameter(param):
+                    self.get_logger().error(f"[storage] Missing parameter: '{param}'")
+                    raise SystemExit(1)
 
-        Returns:
-            Any: parameter value
-        """
+                value = self.get_parameter(param).value
+                if not value:
+                    self.get_logger().error(f"[storage] Empty value for parameter: '{param}'")
+                    raise SystemExit(1)
 
-        # declare parameter
-        param_desc = ParameterDescriptor()
-        param_desc.description = description
-        param_desc.additional_constraints = additional_constraints
-        param_desc.read_only = read_only
-        if from_value is not None and to_value is not None:
-            if param_type == rclpy.Parameter.Type.INTEGER:
-                step_value = step_value if step_value is not None else 1
-                param_desc.integer_range = [
-                    IntegerRange(
-                        from_value=from_value, to_value=to_value, step=step_value
-                    )
-                ]
-            elif param_type == rclpy.Parameter.Type.DOUBLE:
-                step_value = step_value if step_value is not None else 1.0
-                param_desc.floating_point_range = [
-                    FloatingPointRange(
-                        from_value=from_value, to_value=to_value, step=step_value
-                    )
-                ]
-            else:
-                self.get_logger().warn(
-                    f"Parameter type of parameter '{name}' does not support specifying a range"
-                )
-        self.declare_parameter(name, param_type, param_desc)
+                config[key] = value
+                self.get_logger().info(f"[storage] Loaded '{param}': {value}")
 
-        # load parameter
-        try:
-            param = self.get_parameter(name).value
-            self.get_logger().info(f"Loaded parameter '{name}': {param}")
-        except rclpy.exceptions.ParameterUninitializedException:
-            if is_required:
-                self.get_logger().fatal(f"Missing required parameter '{name}', exiting")
-                raise SystemExit(1)
-            else:
-                self.get_logger().warn(
-                    f"Missing parameter '{name}', using default value: {default}"
-                )
-                param = default
-                self.set_parameters([rclpy.Parameter(name=name, value=param)])
+            return config
 
-        # add parameter to auto-reconfigurable parameters
-        if add_to_auto_reconfigurable_params:
-            self.auto_reconfigurable_params.append(name)
+    def parse_and_validate_pipeline_config(self) -> dict[str, dict[str, Any]]:
+        """Parse all pipelines.* parameters and validate known fields."""
+        pipelines = defaultdict(dict)
 
-        return param
+        for param in self._parameters.values():
+            name = param.name
+            value = param.value
 
-    def parameters_callback(
-        self, parameters: list[rclpy.Parameter]
-    ) -> SetParametersResult:
-        """Handles reconfiguration when a parameter value is changed
+            if not name.startswith("pipelines."):
+                continue
 
-        Args:
-            parameters (list[rclpy.Parameter]): parameters
+            parts = name.split(".")
+            if len(parts) < 3:
+                self.get_logger().warn(f"[pipelines] Invalid parameter: '{name}'")
+                continue
 
-        Returns:
-            SetParametersResult: parameter change result
-        """
+            pipeline_name = parts[1]
+            subkey = ".".join(parts[2:])
+            pipelines[pipeline_name][subkey] = value
 
-        for param in parameters:
-            if param.name in self.auto_reconfigurable_params:
-                setattr(self, param.name, param.value)
-                self.get_logger().info(
-                    f"Reconfigured parameter '{param.name}' to: {param.value}"
-                )
+            self.validate_pipeline_parameter(name, value)
 
-        result = SetParametersResult()
-        result.successful = True
+        self.get_logger().info(f"[pipelines] Loaded pipeline configs: {list(pipelines.keys())}")
+        return pipelines
 
-        return result
+    def validate_pipeline_parameter(self, name: str, value: Any):
+        """Validate individual known pipeline parameter."""
+        if name.endswith("max_duration_s"):
+            if not isinstance(value, int) or not (1 <= value <= 3600):
+                self.get_logger().warn(f"[pipelines] '{name}' should be an int between 1 and 3600. Got: {value}")
+
+        elif name.endswith("max_size_bytes"):
+            if not isinstance(value, int) or not (1_000_000 <= value <= 1_000_000_000):
+                self.get_logger().warn(f"[pipelines] '{name}' should be an int between 1MB and 1GB. Got: {value}")
+
+        elif name.endswith("include_topics"):
+            if not isinstance(value, list) or not all(isinstance(t, str) for t in value):
+                self.get_logger().warn(f"[pipelines] '{name}' should be a list of strings. Got: {value}")
 
     def setup(self):
-        """Sets up subscribers, publishers, etc. to configure the node"""
-
-        # callback for dynamic parameter configuration
-        self.add_on_set_parameters_callback(self.parameters_callback)
+        """Sets up subscribers to configure the node"""
 
         # subscriber for handling incoming messages
         self.subscriber = self.create_subscription(
