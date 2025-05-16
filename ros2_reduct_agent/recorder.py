@@ -19,8 +19,6 @@ class Recorder(Node):
     after ``max_duration_s``.
     """
 
-
-
     def __init__(self, **kwargs):
         super().__init__(
             "recorder",
