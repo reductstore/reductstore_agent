@@ -1,16 +1,18 @@
 import asyncio
 import importlib
 import io
-import time
+from rclpy.node import Node
 from collections import defaultdict
 from typing import Any, Dict
 
 import rclpy
+import time
 from mcap.writer import Writer as McapWriter
-from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.serialization import serialize_message
 from reduct import Client
+
+
 
 
 class Recorder(Node):
@@ -18,6 +20,9 @@ class Recorder(Node):
     configured pipeline. Each segment is finalised and passed to ``handle_mcap``
     after ``max_duration_s``.
     """
+
+
+
 
     def __init__(self, **kwargs):
         super().__init__(
