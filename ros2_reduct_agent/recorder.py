@@ -25,12 +25,14 @@ class Recorder(Node):
             "recorder",
             allow_undeclared_parameters=True,
             automatically_declare_parameters_from_overrides=True,
-            **kwargs
+            **kwargs,
         )
 
         # Parameter-driven configuration
         self.storage = self.load_and_validate_storage_config()
-        self.pipelines: Dict[str, Dict[str, Any]] = self.parse_and_validate_pipeline_config()
+        self.pipelines: Dict[str, Dict[str, Any]] = (
+            self.parse_and_validate_pipeline_config()
+        )
 
         # ReductStore client setup
         self.client = Client(self.storage["url"], api_token=self.storage["api_token"])
@@ -49,7 +51,9 @@ class Recorder(Node):
         self.setup_topic_subscriptions()
 
     async def _init_reduct_bucket(self):
-        self.bucket = await self.client.create_bucket(self.storage["bucket"], exist_ok=True)
+        self.bucket = await self.client.create_bucket(
+            self.storage["bucket"], exist_ok=True
+        )
 
     # ---------------------------------------------------------------------
     # Parameter helpers
@@ -67,7 +71,9 @@ class Recorder(Node):
 
             value = self.get_parameter(param).value
             if not value:
-                self.get_logger().error(f"[storage] Empty value for parameter: '{param}'")
+                self.get_logger().error(
+                    f"[storage] Empty value for parameter: '{param}'"
+                )
                 raise SystemExit(1)
 
             config[key] = value
@@ -97,7 +103,9 @@ class Recorder(Node):
 
             self.validate_pipeline_parameter(name, value)
 
-        self.get_logger().info(f"[pipelines] Loaded pipeline configs: {list(pipelines.keys())}")
+        self.get_logger().info(
+            f"[pipelines] Loaded pipeline configs: {list(pipelines.keys())}"
+        )
         return pipelines
 
     def validate_pipeline_parameter(self, name: str, value: Any):
@@ -114,7 +122,9 @@ class Recorder(Node):
                 )
 
         elif name.endswith("include_topics"):
-            if not isinstance(value, list) or not all(isinstance(t, (str, dict)) for t in value):
+            if not isinstance(value, list) or not all(
+                isinstance(t, (str, dict)) for t in value
+            ):
                 self.get_logger().warn(
                     f"[pipelines] '{name}' should be a list of strings or dicts. Got: {value}"
                 )
@@ -191,20 +201,26 @@ class Recorder(Node):
         self.get_logger().info(
             f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
         )
-        
+
         # TODO: use message time instead
         timestamp = self.counter
         self.counter += 1
-        
+
         # Use asyncio to upload
         async def upload():
-            await self.bucket.write(pipeline_name, data, timestamp, content_type="application/mcap")
-            self.get_logger().info(f"[{pipeline_name}] Uploaded MCAP segment to ReductStore entry '{pipeline_name}' at {timestamp} ms.")  
+            await self.bucket.write(
+                pipeline_name, data, timestamp, content_type="application/mcap"
+            )
+            self.get_logger().info(
+                f"[{pipeline_name}] Uploaded MCAP segment to ReductStore entry '{pipeline_name}' at {timestamp} ms."
+            )
 
         try:
             asyncio.get_event_loop().run_until_complete(upload())
         except Exception as exc:
-            self.get_logger().error(f"[{pipeline_name}] Failed to upload MCAP segment: {exc}")
+            self.get_logger().error(
+                f"[{pipeline_name}] Failed to upload MCAP segment: {exc}"
+            )
 
     # ---------------------------------------------------------------------
     # Topic subscription helpers
@@ -223,7 +239,7 @@ class Recorder(Node):
                 else:
                     name = t
                     msg_type_str = None
-                if name: # and name not in ignore_topics
+                if name:  # and name not in ignore_topics
                     topics_to_subscribe.add((name, msg_type_str))
 
         # Query ROS graph for topic types
@@ -234,7 +250,9 @@ class Recorder(Node):
             if not msg_type_str:
                 types = topic_types.get(topic_name)
                 if not types:
-                    self.get_logger().warn(f"No type found for topic '{topic_name}' - skipping.")
+                    self.get_logger().warn(
+                        f"No type found for topic '{topic_name}' - skipping."
+                    )
                     continue
                 msg_type_str = types[0]
 
@@ -264,16 +282,20 @@ class Recorder(Node):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
 
         def _callback(msg):
-            self.get_logger().debug(f"Message received on '{topic_name}' [{msg_type_str}]")
+            self.get_logger().debug(
+                f"Message received on '{topic_name}' [{msg_type_str}]"
+            )
 
             # Serialise once, reuse for all pipelines that include this topic
             try:
                 serialized = serialize_message(msg)
             except Exception as exc:  # noqa: BLE001
-                self.get_logger().error(f"Failed to serialise message on '{topic_name}': {exc}")
+                self.get_logger().error(
+                    f"Failed to serialise message on '{topic_name}': {exc}"
+                )
                 return
 
-            log_time = self.get_clock().now().nanoseconds # TODO: use ROS2 time
+            log_time = self.get_clock().now().nanoseconds  # TODO: use ROS2 time
 
             for pipeline_name, state in self.mcap_pipelines.items():
                 if topic_name not in state["topics"]:
@@ -295,7 +317,7 @@ class Recorder(Node):
                     )
                     channel_id = writer.register_channel(
                         topic=topic_name,
-                        message_encoding="cdr", # TODO: use correct encoding
+                        message_encoding="cdr",  # TODO: use correct encoding
                         schema_id=schema_id,
                     )
                     channels[topic_name] = channel_id
@@ -313,6 +335,7 @@ class Recorder(Node):
 # -------------------------------------------------------------------------
 # Main entry point
 # -------------------------------------------------------------------------
+
 
 def main():
     rclpy.init()
