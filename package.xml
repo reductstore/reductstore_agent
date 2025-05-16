@@ -14,7 +14,6 @@
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
-  <test_depend>pytest</test_depend>
 
   <export>
     <build_type>ament_python</build_type>
