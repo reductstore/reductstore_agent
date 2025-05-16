@@ -1,17 +1,16 @@
-import importlib
-import time
-import io
-from typing import Any, Dict
-from collections import defaultdict
-from reduct import Client
 import asyncio
+import importlib
+import io
+import time
+from collections import defaultdict
+from typing import Any, Dict
 
 import rclpy
+from mcap.writer import Writer as McapWriter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.serialization import serialize_message
-
-from mcap.writer import Writer as McapWriter
+from reduct import Client
 
 
 class Recorder(Node):
