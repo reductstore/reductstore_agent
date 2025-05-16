@@ -1,7 +1,6 @@
 import rclpy
 from ros2_reduct_agent.recorder import Recorder
 from rclpy.parameter import Parameter
-import pytest
 
 # Test that a basic node can be created and destroyed
 def test_node_lifecycle():
