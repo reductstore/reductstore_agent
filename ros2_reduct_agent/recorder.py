@@ -20,11 +20,12 @@ class Recorder(Node):
     after ``max_duration_s``.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__(
             "recorder",
             allow_undeclared_parameters=True,
             automatically_declare_parameters_from_overrides=True,
+            **kwargs
         )
 
         # Parameter-driven configuration
