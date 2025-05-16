@@ -9,4 +9,5 @@ jobs:
           platform: amd64
           target: dev,run
           base-image: rwthika/ros2:jazzy
+          extra-rosdep-args: --from-paths . --ignore-src
           command: ros2 run ros2_reduct_agent ros2_reduct_agent
