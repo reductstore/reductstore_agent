@@ -1,7 +1,10 @@
 import importlib
+import time
 import io
 from typing import Any, Dict
 from collections import defaultdict
+from reduct import Client
+import asyncio
 
 import rclpy
 from rclpy.node import Node
@@ -28,13 +31,24 @@ class Recorder(Node):
         self.storage = self.load_and_validate_storage_config()
         self.pipelines: Dict[str, Dict[str, Any]] = self.parse_and_validate_pipeline_config()
 
+        # ReductStore client setup
+        self.client = Client(self.storage["url"], api_token=self.storage["api_token"])
+        self.bucket = None
+        asyncio.get_event_loop().run_until_complete(self._init_reduct_bucket())
+
         # Runtime structures (initialised below)
         self.mcap_pipelines: Dict[str, Dict[str, Any]] = {}
         self.subscribers = []
 
+        # Counter for debugging
+        self.counter = 0
+
         # Prepare runtime helpers
         self.init_mcap_writers()
         self.setup_topic_subscriptions()
+
+    async def _init_reduct_bucket(self):
+        self.bucket = await self.client.create_bucket(self.storage["bucket"], exist_ok=True)
 
     # ---------------------------------------------------------------------
     # Parameter helpers
@@ -114,12 +128,14 @@ class Recorder(Node):
         for pipeline_name, cfg in self.pipelines.items():
             duration = cfg.get("split.max_duration_s", 60)
 
-            buf = io.BytesIO()
-            writer = McapWriter(buf)
+            buffer = io.BytesIO()
+            writer = McapWriter(buffer)
+            writer.start()
+
             self.mcap_pipelines[pipeline_name] = {
-                "buffer": buf,
+                "buffer": buffer,
                 "writer": writer,
-                "channels": {},  # topic → channel_id
+                "channels": {},
                 "topics": {
                     (t if isinstance(t, str) else t.get("name"))
                     for t in cfg.get("include_topics", [])
@@ -134,7 +150,7 @@ class Recorder(Node):
             self.mcap_pipelines[pipeline_name]["timer"] = timer
 
             self.get_logger().info(
-                f"[{pipeline_name}] MCAP writer initialised (flush every {duration}s)"
+                f"[{pipeline_name}] MCAP writer initialised (flush every {duration}s) with topics: {self.mcap_pipelines[pipeline_name]['topics']}"
             )
 
     def make_pipeline_flush_callback(self, pipeline_name):
@@ -143,21 +159,22 @@ class Recorder(Node):
         def _flush():
             state = self.mcap_pipelines[pipeline_name]
             writer: McapWriter = state["writer"]
-            buf: io.BytesIO = state["buffer"]
+            buffer: io.BytesIO = state["buffer"]
 
             # Finalise the current segment
             writer.finish()
-            buf.seek(0, io.SEEK_END)
-            size = buf.tell()
-            buf.seek(0)
-            data = buf.read()
+            buffer.seek(0)
+            data = buffer.read()
 
-            self.handle_mcap(pipeline_name, data, size)
+            self.handle_mcap(pipeline_name, data)
 
             # Reset buffer & writer for the next segment
-            new_buf = io.BytesIO()
-            state["buffer"] = new_buf
-            state["writer"] = McapWriter(new_buf)
+            new_buffer = io.BytesIO()
+            new_writer = McapWriter(new_buffer)
+            new_writer.start()
+
+            state["buffer"] = new_buffer
+            state["writer"] = new_writer
             state["channels"] = {}
             self.get_logger().info(
                 f"[{pipeline_name}] MCAP writer reset - ready for next segment"
@@ -165,15 +182,28 @@ class Recorder(Node):
 
         return _flush
 
-    def handle_mcap(self, pipeline_name: str, data: bytes, size: int):
+    def handle_mcap(self, pipeline_name: str, data: bytes):
         """Handle a completed MCAP segment.
 
-        This minimal implementation just logs the event; integrate your own
-        storage/upload logic here using ``self.storage``.
+        Upload the MCAP segment to ReductStore using the reduct-py SDK.
         """
         self.get_logger().info(
-            f"[{pipeline_name}] MCAP segment ready (size={size} bytes). Upload or process here."
+            f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
         )
+        
+        # TODO: use message time instead
+        timestamp = self.counter
+        self.counter += 1
+        
+        # Use asyncio to upload
+        async def upload():
+            await self.bucket.write(pipeline_name, data, timestamp, content_type="application/mcap")
+            self.get_logger().info(f"[{pipeline_name}] Uploaded MCAP segment to ReductStore entry '{pipeline_name}' at {timestamp} ms.")  
+
+        try:
+            asyncio.get_event_loop().run_until_complete(upload())
+        except Exception as exc:
+            self.get_logger().error(f"[{pipeline_name}] Failed to upload MCAP segment: {exc}")
 
     # ---------------------------------------------------------------------
     # Topic subscription helpers
@@ -264,7 +294,7 @@ class Recorder(Node):
                     )
                     channel_id = writer.register_channel(
                         topic=topic_name,
-                        message_encoding="cdr",
+                        message_encoding="cdr", # TODO: use correct encoding
                         schema_id=schema_id,
                     )
                     channels[topic_name] = channel_id

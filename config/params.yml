@@ -3,7 +3,7 @@
     storage:
       url: "http://localhost:8383"
       api_token: "access_token"
-      bucket: "ros-data"
+      bucket: "ros_data"
     pipelines:
       telemetry:
         include_topics:
