@@ -51,12 +51,12 @@ jobs:
           target: dev
           command: echo "ROS ready"
 
-      - name: Install dependencies and test tools
+      - name: Install tools and pytest
         run: |
           sudo apt update
-          sudo apt install -y python3-pytest python3-colcon-common-extensions python3-pip
+          sudo apt install -y python3-pip python3-pytest
           pip3 install -U pip
-          pip3 install pytest
+          pip3 install pytest colcon-common-extensions
 
       - name: Build ROS 2 package
         run: |
