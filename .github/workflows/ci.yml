@@ -31,8 +31,10 @@ jobs:
       - name: Run isort
         run: isort --check-only .
 
-  test:
+  test-python:
+    name: Pytest for Recorder Logic
     runs-on: ubuntu-latest
+
     services:
       reductstore:
         image: reduct/store:main
@@ -43,27 +45,30 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up ROS 2 Jazzy
-        uses: ika-rwth-aachen/docker-ros@main
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          platform: amd64
-          base-image: rwthika/ros2:jazzy
-          target: dev
-          command: echo "ROS ready"
+          python-version: '3.10'
 
-      - name: Install tools and pytest
+      - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip python3-pytest
-          pip3 install -U pip
-          pip3 install pytest colcon-common-extensions
+          python -m pip install --upgrade pip
+          pip install pytest rclpy
 
-      - name: Build ROS 2 package
+      - name: Run pytest
         run: |
-          source /opt/ros/jazzy/setup.bash
-          colcon build --packages-select ros2_reduct_agent
-
-      - name: Run tests
-        run: |
-          source install/setup.bash
           pytest
+
+  ros2-smoke-test:
+    name: Smoke Test Node Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - uses: ika-rwth-aachen/docker-ros@v1.7.0
+        with:
+          base-image: rwthika/ros2:jazzy
+          target: dev,run
+          command: ros2 run ros2_reduct_agent ros2_reduct_agent
