@@ -65,15 +65,14 @@ class Recorder(Node):
         for key in required_keys:
             param = f"storage.{key}"
             if not self.has_parameter(param):
-                self.get_logger().error(f"[storage] Missing parameter: '{param}'")
-                raise SystemExit(1)
+                raise SystemExit(f"Missing parameter: '{param}'")
 
             value = self.get_parameter(param).value
             if not value:
                 self.get_logger().error(
                     f"[storage] Empty value for parameter: '{param}'"
                 )
-                raise SystemExit(1)
+                raise SystemExit(f"Empty value for parameter: '{param}'")
 
             config[key] = value
             self.get_logger().info(f"[storage] Loaded '{param}': {value}")
