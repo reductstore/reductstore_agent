@@ -30,7 +30,7 @@ jobs:
         run: isort --check-only .
 
   ros2-tests:
-    name: ROS 2 Build & Pytest (w/ ReductStore)
+    name: Build & Pytest (ROS 2 Jazzy) with ReductStore
     runs-on: ubuntu-latest
 
     services:
@@ -42,16 +42,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run industrial_ci
+      - name: industrial_ci
         uses: ros-industrial/industrial_ci@master
         env:
           ROS_DISTRO: jazzy
           ROS_REPO: main
-          ADDITIONAL_DEBS: python3-pip
+          DOCKER_RUN_OPTS: "--network=host"
+          ADDITIONAL_DEBS: "python3-venv"
           AFTER_INIT: |
+            set -e
+            python3 -m venv /tmp/ci_venv
+            source /tmp/ci_venv/bin/activate
             pip install --upgrade pip
             pip install pytest
+            # keep venv for later hooks
+            echo 'source /tmp/ci_venv/bin/activate' >> /root/.bashrc
           AFTER_SCRIPT: |
-            source install/setup.bash
-            pytest
-          DOCKER_RUN_OPTS: "--network=host"
+            set -e
+            source /tmp/ci_venv/bin/activate
+            # `rosenv` sources /opt/ros/$ROS_DISTRO/setup.bash for us
+            rosenv source install/setup.bash && pytest -v
