@@ -1,7 +1,6 @@
 import asyncio
 import importlib
 import io
-import time
 from collections import defaultdict
 from typing import Any, Dict
 
@@ -54,11 +53,8 @@ class Recorder(Node):
             self.storage["bucket"], exist_ok=True
         )
 
-    # ---------------------------------------------------------------------
-    # Parameter helpers
-    # ---------------------------------------------------------------------
     def load_and_validate_storage_config(self) -> Dict[str, Any]:
-        """Load and validate required storage parameters from the parameter server."""
+        """Load and validate required storage parameters."""
         required_keys = ["url", "api_token", "bucket"]
         config: Dict[str, Any] = {}
 
@@ -69,18 +65,14 @@ class Recorder(Node):
 
             value = self.get_parameter(param).value
             if not value:
-                self.get_logger().error(
-                    f"[storage] Empty value for parameter: '{param}'"
-                )
                 raise SystemExit(f"Empty value for parameter: '{param}'")
 
             config[key] = value
-            self.get_logger().info(f"[storage] Loaded '{param}': {value}")
 
         return config
 
     def parse_and_validate_pipeline_config(self) -> Dict[str, Dict[str, Any]]:
-        """Parse ``pipelines.*`` parameters and perform light validation."""
+        """Parse ``pipelines.*`` parameters and validate their values."""
         pipelines: Dict[str, Dict[str, Any]] = defaultdict(dict)
 
         for param in self._parameters.values():
@@ -92,8 +84,9 @@ class Recorder(Node):
 
             parts = name.split(".")
             if len(parts) < 3:
-                self.get_logger().warn(f"[pipelines] Invalid parameter: '{name}'")
-                continue
+                raise SystemExit(
+                    f"Invalid pipeline parameter name: '{name}'. Expected 'pipelines.<pipeline_name>.<subkey>'"
+                )
 
             pipeline_name = parts[1]
             subkey = ".".join(parts[2:])
@@ -101,30 +94,27 @@ class Recorder(Node):
 
             self.validate_pipeline_parameter(name, value)
 
-        self.get_logger().info(
-            f"[pipelines] Loaded pipeline configs: {list(pipelines.keys())}"
-        )
         return pipelines
 
     def validate_pipeline_parameter(self, name: str, value: Any):
         if name.endswith("max_duration_s"):
             if not isinstance(value, int) or not (1 <= value <= 3600):
-                self.get_logger().warn(
-                    f"[pipelines] '{name}' should be an int between 1 and 3600 s. Got: {value}"
+                raise SystemExit(
+                    f"'{name}' should be an int between 1 and 3600s. Got: {value}"
                 )
 
         elif name.endswith("max_size_bytes"):
-            if not isinstance(value, int) or not (1_000_000 <= value <= 1_000_000_000):
-                self.get_logger().warn(
-                    f"[pipelines] '{name}' should be an int between 1 MB and 1 GB. Got: {value}"
+            if not isinstance(value, int) or not (1_000 <= value <= 1_000_000_000):
+                raise SystemExit(
+                    f"'{name}' should be an int between 1KB and 1GB. Got: {value}"
                 )
 
         elif name.endswith("include_topics"):
             if not isinstance(value, list) or not all(
-                isinstance(t, (str, dict)) for t in value
+                isinstance(v, str) and v.startswith("/") for v in value
             ):
-                self.get_logger().warn(
-                    f"[pipelines] '{name}' should be a list of strings or dicts. Got: {value}"
+                raise SystemExit(
+                    f"'{name}' should be a list of ROS topic names starting with '/'. Got: {value}"
                 )
 
     # ---------------------------------------------------------------------
@@ -328,11 +318,6 @@ class Recorder(Node):
                 )
 
         return _callback
-
-
-# -------------------------------------------------------------------------
-# Main entry point
-# -------------------------------------------------------------------------
 
 
 def main():
