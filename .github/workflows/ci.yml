@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: industrial_ci
+      - name: Run pytest
         uses: ros-industrial/industrial_ci@master
         env:
           ROS_DISTRO: jazzy
@@ -54,7 +54,4 @@ jobs:
             export PIP_BREAK_SYSTEM_PACKAGES=1
             pip install --no-input --break-system-packages \
                         pytest mcap reduct-py
-          AFTER_SCRIPT: |
-            set -e
-            source install/setup.bash
-            pytest -v
+          AFTER_SCRIPT: rosenv pytest -v
