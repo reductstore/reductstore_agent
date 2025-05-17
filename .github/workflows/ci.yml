@@ -48,17 +48,13 @@ jobs:
           ROS_DISTRO: jazzy
           ROS_REPO: main
           DOCKER_RUN_OPTS: "--network=host"
-          ADDITIONAL_DEBS: "python3-venv"
+          ADDITIONAL_DEBS: "python3-pip"
           AFTER_INIT: |
             set -e
-            python3 -m venv /tmp/ci_venv
-            source /tmp/ci_venv/bin/activate
-            pip install --upgrade pip
-            pip install pytest
-            pip install pytest mcap reduct-py
-            echo 'source /tmp/ci_venv/bin/activate' >> /root/.bashrc
+            export PIP_BREAK_SYSTEM_PACKAGES=1
+            pip install --no-input --break-system-packages \
+                        pytest mcap reduct-py
           AFTER_SCRIPT: |
             set -e
-            source /tmp/ci_venv/bin/activate
-            # `rosenv` sources /opt/ros/$ROS_DISTRO/setup.bash for us
-            rosenv source install/setup.bash && pytest -v
+            source install/setup.bash
+            pytest -v
