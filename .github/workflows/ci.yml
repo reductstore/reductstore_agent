@@ -42,12 +42,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Pytest
+      - name: Run pytest
         uses: ros-industrial/industrial_ci@master
         env:
           ROS_DISTRO: jazzy
           ROS_REPO: main
           DOCKER_RUN_OPTS: "--network=host"
           ADDITIONAL_DEBS: "python3-pip"
-          AFTER_INIT: pip install pytest mcap reduct-py
+          AFTER_INIT: pip install --break-system-packages pytest mcap reduct-py
           AFTER_SCRIPT: rosenv pytest -v
