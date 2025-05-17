@@ -1,5 +1,6 @@
 # ros2_reduct_agent
 
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/reductstore/ros2_reduct_agent/ci.yml?branch=main)](https://github.com/reductstore/ros2_reduct_agent/actions)
 [![Community](https://img.shields.io/discourse/status?server=https%3A%2F%2Fcommunity.reduct.store
 )](https://community.reduct.store/signup)
 
