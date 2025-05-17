@@ -1,7 +1,7 @@
 import asyncio
 import importlib
-import io
 from collections import defaultdict
+from io import BytesIO
 from typing import Any, Dict
 
 import rclpy
@@ -13,10 +13,7 @@ from reduct import Client
 
 
 class Recorder(Node):
-    """ROS 2 node that records selected topics into in-memory MCAP segments, one per
-    configured pipeline. Each segment is finalised and passed to ``handle_mcap``
-    after ``max_duration_s``.
-    """
+    """ROS2 node that records selected topics to ReductStore."""
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -25,28 +22,21 @@ class Recorder(Node):
             automatically_declare_parameters_from_overrides=True,
             **kwargs,
         )
-
-        # Parameter-driven configuration
         self.storage = self.load_and_validate_storage_config()
-        self.pipelines: Dict[str, Dict[str, Any]] = (
-            self.parse_and_validate_pipeline_config()
-        )
+        self.pipelines = self.parse_and_validate_pipeline_config()
 
-        # ReductStore client setup
         self.client = Client(self.storage["url"], api_token=self.storage["api_token"])
         self.bucket = None
         asyncio.get_event_loop().run_until_complete(self._init_reduct_bucket())
 
-        # Runtime structures (initialised below)
-        self.mcap_pipelines: Dict[str, Dict[str, Any]] = {}
+        self.mcap_pipelines = {}
         self.subscribers = []
+
+        self.init_mcap_writers()
+        self.setup_topic_subscriptions()
 
         # Counter for debugging
         self.counter = 0
-
-        # Prepare runtime helpers
-        self.init_mcap_writers()
-        self.setup_topic_subscriptions()
 
     async def _init_reduct_bucket(self):
         self.bucket = await self.client.create_bucket(
@@ -72,20 +62,20 @@ class Recorder(Node):
         return config
 
     def parse_and_validate_pipeline_config(self) -> Dict[str, Dict[str, Any]]:
-        """Parse ``pipelines.*`` parameters and validate their values."""
+        """Parse and validate pipeline parameters."""
         pipelines: Dict[str, Dict[str, Any]] = defaultdict(dict)
 
-        for param in self._parameters.values():
+        for param in self.get_parameters_by_prefix("pipelines").values():
             name = param.name
             value = param.value
-
-            if not name.startswith("pipelines."):
-                continue
 
             parts = name.split(".")
             if len(parts) < 3:
                 raise SystemExit(
-                    f"Invalid pipeline parameter name: '{name}'. Expected 'pipelines.<pipeline_name>.<subkey>'"
+                    (
+                        f"Invalid pipeline parameter name: '{name}'. "
+                        "Expected 'pipelines.<pipeline_name>.<subkey>'"
+                    )
                 )
 
             pipeline_name = parts[1]
@@ -117,17 +107,15 @@ class Recorder(Node):
                     f"'{name}' should be a list of ROS topic names starting with '/'. Got: {value}"
                 )
 
-    # ---------------------------------------------------------------------
-    # MCAP helpers
-    # ---------------------------------------------------------------------
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, and a timer that fires
-        after ``max_duration_s`` to off-load the segment.
+        after ``max_duration_s`` to store the segment in ReductStore.
         """
         for pipeline_name, cfg in self.pipelines.items():
             duration = cfg.get("split.max_duration_s", 60)
+            topics = cfg.get("include_topics", [])
 
-            buffer = io.BytesIO()
+            buffer = BytesIO()
             writer = McapWriter(buffer)
             writer.start()
 
@@ -135,40 +123,33 @@ class Recorder(Node):
                 "buffer": buffer,
                 "writer": writer,
                 "channels": {},
-                "topics": {
-                    (t if isinstance(t, str) else t.get("name"))
-                    for t in cfg.get("include_topics", [])
-                    if t
-                },
+                "topics": topics,
             }
 
-            # Periodic flush timer
             timer = self.create_timer(
-                float(duration), self.make_pipeline_flush_callback(pipeline_name)
+                float(duration), self.make_pipeline_callback(pipeline_name)
             )
             self.mcap_pipelines[pipeline_name]["timer"] = timer
 
             self.get_logger().info(
-                f"[{pipeline_name}] MCAP writer initialised (flush every {duration}s) with topics: {self.mcap_pipelines[pipeline_name]['topics']}"
+                f"[{pipeline_name}] MCAP writer initialised (every {duration}s) with topics: {self.mcap_pipelines[pipeline_name]['topics']}"
             )
 
-    def make_pipeline_flush_callback(self, pipeline_name):
+    def make_pipeline_callback(self, pipeline_name):
         """Return a closure that finalises and handles the MCAP segment."""
 
-        def _flush():
+        def _pipeline_callback():
             state = self.mcap_pipelines[pipeline_name]
             writer: McapWriter = state["writer"]
-            buffer: io.BytesIO = state["buffer"]
+            buffer: BytesIO = state["buffer"]
 
-            # Finalise the current segment
             writer.finish()
             buffer.seek(0)
             data = buffer.read()
 
-            self.handle_mcap(pipeline_name, data)
+            self.upload_mcap(pipeline_name, data)
 
-            # Reset buffer & writer for the next segment
-            new_buffer = io.BytesIO()
+            new_buffer = BytesIO()
             new_writer = McapWriter(new_buffer)
             new_writer.start()
 
@@ -179,13 +160,10 @@ class Recorder(Node):
                 f"[{pipeline_name}] MCAP writer reset - ready for next segment"
             )
 
-        return _flush
+        return _pipeline_callback
 
-    def handle_mcap(self, pipeline_name: str, data: bytes):
-        """Handle a completed MCAP segment.
-
-        Upload the MCAP segment to ReductStore using the reduct-py SDK.
-        """
+    def upload_mcap(self, pipeline_name: str, data: bytes):
+        """Upload an MCAP segment to ReductStore."""
         self.get_logger().info(
             f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
         )
@@ -194,8 +172,7 @@ class Recorder(Node):
         timestamp = self.counter
         self.counter += 1
 
-        # Use asyncio to upload
-        async def upload():
+        async def _upload():
             await self.bucket.write(
                 pipeline_name, data, timestamp, content_type="application/mcap"
             )
@@ -204,20 +181,14 @@ class Recorder(Node):
             )
 
         try:
-            asyncio.get_event_loop().run_until_complete(upload())
+            asyncio.get_event_loop().run_until_complete(_upload())
         except Exception as exc:
             self.get_logger().error(
                 f"[{pipeline_name}] Failed to upload MCAP segment: {exc}"
             )
 
-    # ---------------------------------------------------------------------
-    # Topic subscription helpers
-    # ---------------------------------------------------------------------
     def setup_topic_subscriptions(self):
         """Subscribe to all topics referenced by any pipeline."""
-        # ignore_topics = {"/rosout", "/parameter_events"}
-
-        # Build set of (topic, msg_type_str)
         topics_to_subscribe = set()
         for pipeline in self.pipelines.values():
             for t in pipeline.get("include_topics", []):
@@ -227,12 +198,10 @@ class Recorder(Node):
                 else:
                     name = t
                     msg_type_str = None
-                if name:  # and name not in ignore_topics
+                if name:
                     topics_to_subscribe.add((name, msg_type_str))
 
-        # Query ROS graph for topic types
         topic_types = dict(self.get_topic_names_and_types())
-
         for topic_name, msg_type_str in topics_to_subscribe:
             # Infer message type if not provided
             if not msg_type_str:
@@ -263,9 +232,6 @@ class Recorder(Node):
             self.subscribers.append(sub)
             self.get_logger().info(f"Subscribed to '{topic_name}' [{msg_type_str}]")
 
-    # ---------------------------------------------------------------------
-    # Per-message callback (wrapped via factory)
-    # ---------------------------------------------------------------------
     def topic_callback_factory(self, topic_name: str, msg_type_str: str):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
 
@@ -274,10 +240,9 @@ class Recorder(Node):
                 f"Message received on '{topic_name}' [{msg_type_str}]"
             )
 
-            # Serialise once, reuse for all pipelines that include this topic
             try:
                 serialized = serialize_message(msg)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self.get_logger().error(
                     f"Failed to serialise message on '{topic_name}': {exc}"
                 )
@@ -287,7 +252,7 @@ class Recorder(Node):
 
             for pipeline_name, state in self.mcap_pipelines.items():
                 if topic_name not in state["topics"]:
-                    continue  # not part of this pipeline
+                    continue
 
                 self.get_logger().info(
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
@@ -296,12 +261,11 @@ class Recorder(Node):
                 writer: McapWriter = state["writer"]
                 channels = state["channels"]
 
-                # Lazily create channel (and dummy schema) the first time we see this topic
                 if topic_name not in channels:
                     schema_id = writer.register_schema(
                         name=msg_type_str,
-                        encoding="ros2msg",
-                        data=b"",  # minimal / unknown schema
+                        encoding="ros2msg",  # TODO: unknown encoding
+                        data=b"",  # TODO: unknown schema
                     )
                     channel_id = writer.register_channel(
                         topic=topic_name,
