@@ -55,7 +55,7 @@ jobs:
             source /tmp/ci_venv/bin/activate
             pip install --upgrade pip
             pip install pytest
-            # keep venv for later hooks
+            pip install pytest mcap reduct-py
             echo 'source /tmp/ci_venv/bin/activate' >> /root/.bashrc
           AFTER_SCRIPT: |
             set -e
