@@ -51,9 +51,18 @@ def as_overrides(storage_dict, pipeline_params=None):
     return overrides
 
 
-def test_recorder_valid_params():
+def test_recorder_valid_storage_params():
     """Test that the Recorder node can be created with valid parameters."""
     node = Recorder(parameter_overrides=as_overrides(storage_params()))
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
+def test_recorder_valid_pipeline_params():
+    """Test that the Recorder node can be created with valid pipeline parameters."""
+    node = Recorder(
+        parameter_overrides=as_overrides(storage_params(), pipeline_params())
+    )
     assert node.get_name() == "recorder"
     node.destroy_node()
 

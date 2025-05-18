@@ -163,7 +163,7 @@ class Recorder(Node):
         """Subscribe to all topics referenced by any pipeline."""
         topics_to_subscribe = set()
         for pipeline in self.pipelines.values():
-            for t in getattr(pipeline, "include_topics", []):
+            for t in pipeline.include_topics:
                 if isinstance(t, dict):
                     name = t.get("name")
                     msg_type_str = t.get("type")
