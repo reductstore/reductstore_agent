@@ -11,6 +11,8 @@ from rclpy.qos import QoSProfile
 from rclpy.serialization import serialize_message
 from reduct import Client
 
+from .config_models import PipelineConfig, StorageConfig
+
 
 class Recorder(Node):
     """ROS2 node that records selected topics to ReductStore."""
@@ -22,10 +24,10 @@ class Recorder(Node):
             automatically_declare_parameters_from_overrides=True,
             **kwargs,
         )
-        self.storage = self.load_and_validate_storage_config()
-        self.pipelines = self.parse_and_validate_pipeline_config()
+        self.storage = self.validate_storage_config()
+        self.pipelines = self.validate_pipeline_config()
 
-        self.client = Client(self.storage["url"], api_token=self.storage["api_token"])
+        self.client = Client(self.storage.url, api_token=self.storage.api_token)
         self.bucket = None
         asyncio.get_event_loop().run_until_complete(self._init_reduct_bucket())
 
@@ -40,80 +42,50 @@ class Recorder(Node):
 
     async def _init_reduct_bucket(self):
         self.bucket = await self.client.create_bucket(
-            self.storage["bucket"], exist_ok=True
+            self.storage.bucket, exist_ok=True
         )
 
-    def load_and_validate_storage_config(self) -> Dict[str, Any]:
+    def validate_storage_config(self) -> StorageConfig:
         """Load and validate required storage parameters."""
-        required_keys = ["url", "api_token", "bucket"]
-        config: Dict[str, Any] = {}
-
-        for key in required_keys:
+        params = {}
+        for key in ["url", "api_token", "bucket"]:
             param = f"storage.{key}"
             if not self.has_parameter(param):
-                raise SystemExit(f"Missing parameter: '{param}'")
-
+                raise ValueError(f"Missing parameter: '{param}'")
             value = self.get_parameter(param).value
-            if not value:
-                raise SystemExit(f"Empty value for parameter: '{param}'")
+            params[key] = value
+        return StorageConfig(**params)
 
-            config[key] = value
-
-        return config
-
-    def parse_and_validate_pipeline_config(self) -> Dict[str, Dict[str, Any]]:
+    def validate_pipeline_config(self) -> Dict[str, PipelineConfig]:
         """Parse and validate pipeline parameters."""
-        pipelines: Dict[str, Dict[str, Any]] = defaultdict(dict)
-
+        pipelines_raw: Dict[str, Dict[str, Any]] = defaultdict(dict)
         for param in self.get_parameters_by_prefix("pipelines").values():
             name = param.name
             value = param.value
-
             parts = name.split(".")
             if len(parts) < 3:
-                raise SystemExit(
+                raise ValueError(
                     (
                         f"Invalid pipeline parameter name: '{name}'. "
                         "Expected 'pipelines.<pipeline_name>.<subkey>'"
                     )
                 )
-
             pipeline_name = parts[1]
             subkey = ".".join(parts[2:])
-            pipelines[pipeline_name][subkey] = value
+            pipelines_raw[pipeline_name][subkey] = value
 
-            self.validate_pipeline_parameter(name, value)
-
+        pipelines: Dict[str, PipelineConfig] = {}
+        for name, cfg in pipelines_raw.items():
+            pipelines[name] = PipelineConfig(**cfg)
         return pipelines
-
-    def validate_pipeline_parameter(self, name: str, value: Any):
-        if name.endswith("max_duration_s"):
-            if not isinstance(value, int) or not (1 <= value <= 3600):
-                raise SystemExit(
-                    f"'{name}' should be an int between 1 and 3600s. Got: {value}"
-                )
-
-        elif name.endswith("max_size_bytes"):
-            if not isinstance(value, int) or not (1_000 <= value <= 1_000_000_000):
-                raise SystemExit(
-                    f"'{name}' should be an int between 1KB and 1GB. Got: {value}"
-                )
-
-        elif name.endswith("include_topics"):
-            if not isinstance(value, list) or not all(
-                isinstance(v, str) and v.startswith("/") for v in value
-            ):
-                raise SystemExit(
-                    f"'{name}' should be a list of ROS topic names starting with '/'. Got: {value}"
-                )
 
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, and a timer that fires
         after ``max_duration_s`` to store the segment in ReductStore.
         """
         for pipeline_name, cfg in self.pipelines.items():
-            duration = cfg.get("split.max_duration_s", 60)
-            topics = cfg.get("include_topics", [])
+            duration = cfg.split_max_duration_s
+            topics = cfg.include_topics
 
             buffer = BytesIO()
             writer = McapWriter(buffer)
@@ -191,7 +163,7 @@ class Recorder(Node):
         """Subscribe to all topics referenced by any pipeline."""
         topics_to_subscribe = set()
         for pipeline in self.pipelines.values():
-            for t in pipeline.get("include_topics", []):
+            for t in getattr(pipeline, "include_topics", []):
                 if isinstance(t, dict):
                     name = t.get("name")
                     msg_type_str = t.get("type")

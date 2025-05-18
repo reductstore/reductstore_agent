@@ -64,7 +64,7 @@ def test_recorder_missing_storage_param(missing_key):
     params = storage_params()
     params.pop(missing_key)
     with pytest.raises(
-        SystemExit, match=rf"Missing parameter: 'storage\.{missing_key}'"
+        ValueError, match=rf"Missing parameter: 'storage\.{missing_key}'"
     ):
         Recorder(parameter_overrides=as_overrides(params))
 
@@ -74,9 +74,7 @@ def test_recorder_empty_storage_value(empty_key):
     """Test that the Recorder node raises an error if a required parameter is empty."""
     params = storage_params()
     params[empty_key] = ""
-    with pytest.raises(
-        SystemExit, match=f"Empty value for parameter: 'storage\.{empty_key}'"
-    ):
+    with pytest.raises(ValueError, match=f"'{empty_key}' must not be empty"):
         Recorder(parameter_overrides=as_overrides(params))
 
 
@@ -86,27 +84,27 @@ def test_recorder_empty_storage_value(empty_key):
         (
             "pipelines.test.split.max_duration_s",
             0,
-            "pipelines.test.split.max_duration_s' should be an int between 1 and 3600s. Got: 0",
+            "greater than or equal to 1",
         ),
         (
             "pipelines.test.split.max_duration_s",
             3601,
-            "pipelines.test.split.max_duration_s' should be an int between 1 and 3600s. Got: 3601",
+            "less than or equal to 3600",
         ),
         (
             "pipelines.test.split.max_size_bytes",
             999,
-            "pipelines.test.split.max_size_bytes' should be an int between 1KB and 1GB. Got: 999",
+            "greater than or equal to 1000",
         ),
         (
             "pipelines.test.split.max_size_bytes",
             1000000001,
-            "pipelines.test.split.max_size_bytes' should be an int between 1KB and 1GB. Got: 1000000001",
+            "less than or equal to 1000000000",
         ),
         (
             "pipelines.test.include_topics",
             ["/valid_topic", "invalid_topic"],
-            "'pipelines.test.include_topics' should be a list of ROS topic names starting with '/'.",
+            "must be a list of ROS topic names starting with '/'",
         ),
     ],
 )
@@ -122,7 +120,7 @@ def test_recorder_invalid_pipeline_param(param_name, invalid_value, err_msg):
         else:
             pipeline_params_list.append(param)
 
-    with pytest.raises(SystemExit, match=rf"{err_msg}"):
+    with pytest.raises(ValueError, match=rf"{err_msg}"):
         Recorder(
             parameter_overrides=as_overrides(storage_params_dict, pipeline_params_list)
         )
@@ -136,11 +134,53 @@ def test_recorder_invalid_pipeline_param_name():
     )
 
     with pytest.raises(
-        SystemExit,
+        ValueError,
         match=re.escape(
             "Invalid pipeline parameter name: 'pipelines.invalid'. Expected 'pipelines.<pipeline_name>.<subkey>'"
         ),
     ):
         Recorder(
             parameter_overrides=as_overrides(storage_dict, [invalid_pipeline_param])
+        )
+
+
+def test_pipeline_missing_max_size():
+    """Test that a pipeline without split_max_size_bytes (optional) works."""
+    storage_dict = storage_params()
+    pipeline_params_list = [
+        Parameter(
+            "pipelines.test.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+        Parameter(
+            "pipelines.test.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            10,
+        ),
+    ]
+    try:
+        node = Recorder(
+            parameter_overrides=as_overrides(storage_dict, pipeline_params_list)
+        )
+        node.destroy_node()
+    except Exception as e:
+        pytest.fail(f"Unexpected error for valid pipeline config: {e}")
+
+
+def test_pipeline_missing_max_duration():
+    """Test that missing required split_max_duration_s fails."""
+    storage_dict = storage_params()
+    pipeline_params_list_missing_required = [
+        Parameter(
+            "pipelines.test.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+    ]
+    with pytest.raises(ValueError, match="split.max_duration_s"):
+        Recorder(
+            parameter_overrides=as_overrides(
+                storage_dict, pipeline_params_list_missing_required
+            )
         )
