@@ -220,7 +220,7 @@ class Recorder(Node):
                 return
 
             if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
-                log_time = (
+                log_time = int(
                     msg.header.stamp.sec * 1_000_000 + msg.header.stamp.nanosec // 1_000
                 )
             else:
