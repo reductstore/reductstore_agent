@@ -1,5 +1,8 @@
-from typing import List, Optional
+from enum import Enum
+from io import BytesIO
+from typing import Any
 
+from mcap.writer import Writer as McapWriter
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -16,12 +19,20 @@ class StorageConfig(BaseModel):
         return v
 
 
+class FilenameMode(str, Enum):
+    """Filename mode for pipeline segments."""
+
+    TIMESTAMP = "timestamp"
+    COUNTER = "counter"
+
+
 class PipelineConfig(BaseModel):
     split_max_duration_s: int = Field(..., alias="split.max_duration_s", ge=1, le=3600)
-    split_max_size_bytes: Optional[int] = Field(
+    split_max_size_bytes: int | None = Field(
         None, alias="split.max_size_bytes", ge=1000, le=1_000_000_000
     )
-    include_topics: List[str] = Field(..., alias="include_topics")
+    include_topics: list[str] = Field(..., alias="include_topics")
+    filename_mode: FilenameMode = Field(FilenameMode.TIMESTAMP, alias="filename_mode")
 
     @field_validator("include_topics")
     @classmethod
@@ -33,3 +44,16 @@ class PipelineConfig(BaseModel):
                 "'include_topics' must be a list of ROS topic names starting with '/'"
             )
         return v
+
+
+class PipelineState(BaseModel):
+    channels: dict[str, int] = Field(default_factory=dict)
+    topics: list[str] = Field(default_factory=list)
+    counter: int = 0
+    timestamp: int | None = None
+    buffer: BytesIO | None = None
+    writer: McapWriter | None = None
+    timer: Any | None = None
+
+    class Config:
+        arbitrary_types_allowed = True

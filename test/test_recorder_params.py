@@ -31,6 +31,11 @@ def pipeline_params():
             Parameter.Type.INTEGER,
             1_000_000,
         ),
+        Parameter(
+            "pipelines.test.filename_mode",
+            Parameter.Type.STRING,
+            "counter",
+        ),
     ]
 
 
@@ -193,3 +198,27 @@ def test_pipeline_missing_max_duration():
                 storage_dict, pipeline_params_list_missing_required
             )
         )
+
+
+def test_pipeline_invalid_filename_mode():
+    """Test that an invalid filename mode raises an error."""
+    storage_dict = storage_params()
+    pipeline_params_list = [
+        Parameter(
+            "pipelines.test.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+        Parameter(
+            "pipelines.test.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            10,
+        ),
+        Parameter(
+            "pipelines.test.filename_mode",
+            Parameter.Type.STRING,
+            "invalid_mode",
+        ),
+    ]
+    with pytest.raises(ValueError, match="Input should be 'timestamp' or 'counter'"):
+        Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))

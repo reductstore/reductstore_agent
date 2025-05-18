@@ -2,6 +2,7 @@ import asyncio
 import importlib
 from collections import defaultdict
 from io import BytesIO
+from time import time
 from typing import Any, Dict
 
 import rclpy
@@ -9,9 +10,10 @@ from mcap.writer import Writer as McapWriter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.serialization import serialize_message
+from rclpy.subscription import Subscription
 from reduct import Client
 
-from .config_models import PipelineConfig, StorageConfig
+from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
 
 
 class Recorder(Node):
@@ -31,8 +33,8 @@ class Recorder(Node):
         self.bucket = None
         asyncio.get_event_loop().run_until_complete(self._init_reduct_bucket())
 
-        self.mcap_pipelines = {}
-        self.subscribers = []
+        self.pipeline_states: dict[str, PipelineState] = {}
+        self.subscribers: list[Subscription] = []
 
         self.init_mcap_writers()
         self.setup_topic_subscriptions()
@@ -86,63 +88,73 @@ class Recorder(Node):
         for pipeline_name, cfg in self.pipelines.items():
             duration = cfg.split_max_duration_s
             topics = cfg.include_topics
+            filename_mode = cfg.filename_mode
 
             buffer = BytesIO()
             writer = McapWriter(buffer)
             writer.start()
 
-            self.mcap_pipelines[pipeline_name] = {
-                "buffer": buffer,
-                "writer": writer,
-                "channels": {},
-                "topics": topics,
-            }
+            state = PipelineState(
+                topics=topics,
+                buffer=buffer,
+                writer=writer,
+            )
+            self.pipeline_states[pipeline_name] = state
 
             timer = self.create_timer(
-                float(duration), self.make_pipeline_callback(pipeline_name)
+                float(duration),
+                self.make_pipeline_callback(pipeline_name, filename_mode),
             )
-            self.mcap_pipelines[pipeline_name]["timer"] = timer
+            state.timer = timer
 
             self.get_logger().info(
-                f"[{pipeline_name}] MCAP writer initialised (every {duration}s) with topics: {self.mcap_pipelines[pipeline_name]['topics']}"
+                f"[{pipeline_name}] MCAP writer initialised (every {duration}s) with topics: {state.topics}"
             )
 
-    def make_pipeline_callback(self, pipeline_name):
+    def make_pipeline_callback(self, pipeline_name: str, filename_mode: FilenameMode):
         """Return a closure that finalises and handles the MCAP segment."""
 
         def _pipeline_callback():
-            state = self.mcap_pipelines[pipeline_name]
-            writer: McapWriter = state["writer"]
-            buffer: BytesIO = state["buffer"]
+            state = self.pipeline_states[pipeline_name]
+            writer = state.writer
+            buffer = state.buffer
+            timestamp = (
+                state.counter
+                if filename_mode == FilenameMode.COUNTER
+                else state.timestamp
+            )
+
+            if not all([writer is not None, buffer is not None, timestamp is not None]):
+                self.get_logger().warn(
+                    f"[{pipeline_name}] Missing required state - skipping upload."
+                )
+                return
 
             writer.finish()
             buffer.seek(0)
             data = buffer.read()
 
-            self.upload_mcap(pipeline_name, data)
+            self.upload_mcap(pipeline_name, data, timestamp)
 
             new_buffer = BytesIO()
             new_writer = McapWriter(new_buffer)
             new_writer.start()
+            state.counter += 1
 
-            state["buffer"] = new_buffer
-            state["writer"] = new_writer
-            state["channels"] = {}
+            state.buffer = new_buffer
+            state.writer = new_writer
+            state.channels = {}
             self.get_logger().info(
                 f"[{pipeline_name}] MCAP writer reset - ready for next segment"
             )
 
         return _pipeline_callback
 
-    def upload_mcap(self, pipeline_name: str, data: bytes):
+    def upload_mcap(self, pipeline_name: str, data: bytes, timestamp: int):
         """Upload an MCAP segment to ReductStore."""
         self.get_logger().info(
             f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
         )
-
-        # TODO: use message time instead
-        timestamp = self.counter
-        self.counter += 1
 
         async def _upload():
             await self.bucket.write(
@@ -208,10 +220,6 @@ class Recorder(Node):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
 
         def _callback(msg):
-            self.get_logger().debug(
-                f"Message received on '{topic_name}' [{msg_type_str}]"
-            )
-
             try:
                 serialized = serialize_message(msg)
             except Exception as exc:
@@ -220,18 +228,29 @@ class Recorder(Node):
                 )
                 return
 
-            log_time = self.get_clock().now().nanoseconds  # TODO: use ROS2 time
+            if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
+                log_time = (
+                    msg.header.stamp.sec * 1_000_000 + msg.header.stamp.nanosec // 1_000
+                )
+            else:
+                log_time = int(time() * 1_000_000)
+                self.get_logger().warn(
+                    f"Message on '{topic_name}' has no header.stamp, using current time: {log_time}"
+                )
 
-            for pipeline_name, state in self.mcap_pipelines.items():
-                if topic_name not in state["topics"]:
+            for pipeline_name, state in self.pipeline_states.items():
+                if topic_name not in state.topics:
                     continue
+
+                if state.timestamp is None:
+                    state.timestamp = log_time
 
                 self.get_logger().info(
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
                 )
 
-                writer: McapWriter = state["writer"]
-                channels = state["channels"]
+                writer: McapWriter = state.writer
+                channels = state.channels
 
                 if topic_name not in channels:
                     schema_id = writer.register_schema(
