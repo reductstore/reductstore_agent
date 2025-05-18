@@ -81,7 +81,7 @@ class Recorder(Node):
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, and a timer that fires
         after ``max_duration_s`` to store the segment in ReductStore.
-        """
+        """  # TODO: also max bytes
         for pipeline_name, cfg in self.pipelines.items():
             duration = cfg.split_max_duration_s
             topics = cfg.include_topics
@@ -211,6 +211,7 @@ class Recorder(Node):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
 
         def _callback(msg):
+            # TODO: also check buffer size to max bytes or keep track of bytes written
             try:
                 serialized = serialize_message(msg)
             except Exception as exc:
