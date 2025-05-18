@@ -39,9 +39,6 @@ class Recorder(Node):
         self.init_mcap_writers()
         self.setup_topic_subscriptions()
 
-        # Counter for debugging
-        self.counter = 0
-
     async def _init_reduct_bucket(self):
         self.bucket = await self.client.create_bucket(
             self.storage.bucket, exist_ok=True
@@ -173,48 +170,42 @@ class Recorder(Node):
 
     def setup_topic_subscriptions(self):
         """Subscribe to all topics referenced by any pipeline."""
-        topics_to_subscribe = set()
-        for pipeline in self.pipelines.values():
-            for t in pipeline.include_topics:
-                if isinstance(t, dict):
-                    name = t.get("name")
-                    msg_type_str = t.get("type")
-                else:
-                    name = t
-                    msg_type_str = None
-                if name:
-                    topics_to_subscribe.add((name, msg_type_str))
-
+        topics_to_subscribe = {
+            t for p in self.pipelines.values() for t in p.include_topics
+        }
         topic_types = dict(self.get_topic_names_and_types())
-        for topic_name, msg_type_str in topics_to_subscribe:
-            # Infer message type if not provided
-            if not msg_type_str:
-                types = topic_types.get(topic_name)
-                if not types:
-                    self.get_logger().warn(
-                        f"No type found for topic '{topic_name}' - skipping."
-                    )
-                    continue
-                msg_type_str = types[0]
 
-            pkg, _, msg = msg_type_str.partition("/msg/")
+        for topic in topics_to_subscribe:
+            msg_types = topic_types.get(topic)
+            if not msg_types:
+                self.get_logger().warn(f"Skipping '{topic}': No message type found.")
+                continue
+
+            msg_type_str = msg_types[0]
+            if "/msg/" not in msg_type_str:
+                self.get_logger().warn(
+                    f"Skipping '{topic}': Invalid message type format '{msg_type_str}'."
+                )
+                continue
+
+            pkg, msg = msg_type_str.split("/msg/")
             try:
                 module = importlib.import_module(f"{pkg}.msg")
                 msg_type = getattr(module, msg)
-            except (ModuleNotFoundError, AttributeError):
+            except (ModuleNotFoundError, AttributeError) as e:
                 self.get_logger().warn(
-                    f"Cannot import message type '{msg_type_str}' for topic '{topic_name}'"
+                    f"Skipping '{topic}': Cannot import '{msg_type_str}' ({e})"
                 )
                 continue
 
             sub = self.create_subscription(
                 msg_type,
-                topic_name,
-                self.topic_callback_factory(topic_name, msg_type_str),
+                topic,
+                self.topic_callback_factory(topic, msg_type_str),
                 QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
-            self.get_logger().info(f"Subscribed to '{topic_name}' [{msg_type_str}]")
+            self.get_logger().info(f"Subscribed to '{topic}' [{msg_type_str}]")
 
     def topic_callback_factory(self, topic_name: str, msg_type_str: str):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
