@@ -13,7 +13,7 @@ def test_recorder_subscribed_to_topic():
     recorder = Recorder(
         parameter_overrides=[
             Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
-            Parameter("storage.api_token", Parameter.Type.STRING, "dummy_token"),
+            Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
             Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
             Parameter(
                 "pipelines.test.include_topics",
@@ -45,7 +45,7 @@ def test_recorder_not_subscribed_to_other_topic():
     recorder = Recorder(
         parameter_overrides=[
             Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
-            Parameter("storage.api_token", Parameter.Type.STRING, "dummy_token"),
+            Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
             Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
             Parameter(
                 "pipelines.test.include_topics",
@@ -77,7 +77,7 @@ def test_recorder_subscribed_to_multiple_topics():
     recorder = Recorder(
         parameter_overrides=[
             Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
-            Parameter("storage.api_token", Parameter.Type.STRING, "dummy_token"),
+            Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
             Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
             Parameter(
                 "pipelines.test.include_topics",

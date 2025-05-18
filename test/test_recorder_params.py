@@ -9,7 +9,7 @@ from ros2_reduct_agent.recorder import Recorder
 def storage_params():
     return {
         "url": "http://localhost:8383",
-        "api_token": "dummy_token",
+        "api_token": "test_token",
         "bucket": "test_bucket",
     }
 
