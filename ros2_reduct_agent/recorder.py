@@ -3,7 +3,7 @@ import importlib
 from collections import defaultdict
 from io import BytesIO
 from time import time
-from typing import Any, Dict
+from typing import Any
 
 import rclpy
 from mcap.writer import Writer as McapWriter
@@ -55,9 +55,9 @@ class Recorder(Node):
             params[key] = value
         return StorageConfig(**params)
 
-    def validate_pipeline_config(self) -> Dict[str, PipelineConfig]:
+    def validate_pipeline_config(self) -> dict[str, PipelineConfig]:
         """Parse and validate pipeline parameters."""
-        pipelines_raw: Dict[str, Dict[str, Any]] = defaultdict(dict)
+        pipelines_raw: dict[str, dict[str, Any]] = defaultdict(dict)
         for param in self.get_parameters_by_prefix("pipelines").values():
             name = param.name
             value = param.value
@@ -73,7 +73,7 @@ class Recorder(Node):
             subkey = ".".join(parts[2:])
             pipelines_raw[pipeline_name][subkey] = value
 
-        pipelines: Dict[str, PipelineConfig] = {}
+        pipelines: dict[str, PipelineConfig] = {}
         for name, cfg in pipelines_raw.items():
             pipelines[name] = PipelineConfig(**cfg)
         return pipelines
