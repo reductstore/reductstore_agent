@@ -14,6 +14,7 @@ from rclpy.subscription import Subscription
 from reduct import Client
 
 from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
+from .utils import get_message_schema
 
 
 class Recorder(Node):
@@ -79,9 +80,9 @@ class Recorder(Node):
         return pipelines
 
     def init_mcap_writers(self):
-        """Create an in-memory MCAP writer, per pipeline, and a timer that fires
-        after ``max_duration_s`` to store the segment in ReductStore.
-        """  # TODO: also max bytes
+        """Create an in-memory MCAP writer, per pipeline, a timer that fires
+        after ``max_duration_s`` or when the size exceeds ``max_size_bytes``.
+        """
         for pipeline_name, cfg in self.pipelines.items():
             duration = cfg.split_max_duration_s
             topics = cfg.include_topics
@@ -113,6 +114,14 @@ class Recorder(Node):
 
         def _pipeline_callback():
             state = self.pipeline_states[pipeline_name]
+            if state.is_uploading:
+                self.get_logger().warn(
+                    f"[{pipeline_name}] Timer skipped: upload in progress"
+                )
+                return
+            state.is_uploading = True
+
+            timer = state.timer
             writer = state.writer
             buffer = state.buffer
             timestamp = (
@@ -121,7 +130,7 @@ class Recorder(Node):
                 else state.timestamp
             )
 
-            if not all([writer is not None, buffer is not None, timestamp is not None]):
+            if any([writer is None, buffer is None, timestamp is None, timer is None]):
                 self.get_logger().warn(
                     f"[{pipeline_name}] Missing required state - skipping upload."
                 )
@@ -136,7 +145,9 @@ class Recorder(Node):
             new_buffer = BytesIO()
             new_writer = McapWriter(new_buffer)
             new_writer.start()
+            state.current_size = 0
             state.counter += 1
+            timer.reset()
 
             state.buffer = new_buffer
             state.writer = new_writer
@@ -144,6 +155,8 @@ class Recorder(Node):
             self.get_logger().info(
                 f"[{pipeline_name}] MCAP writer reset - ready for next segment"
             )
+
+            state.is_uploading = False
 
         return _pipeline_callback
 
@@ -211,7 +224,6 @@ class Recorder(Node):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
 
         def _callback(msg):
-            # TODO: also check buffer size to max bytes or keep track of bytes written
             try:
                 serialized = serialize_message(msg)
             except Exception as exc:
@@ -237,28 +249,71 @@ class Recorder(Node):
                 if state.timestamp is None:
                     state.timestamp = log_time
 
+                state.current_size += len(serialized)
+
+                if (
+                    self.pipelines[pipeline_name].split_max_size_bytes
+                    and state.current_size
+                    > self.pipelines[pipeline_name].split_max_size_bytes
+                ):
+                    if state.is_uploading:
+                        self.get_logger().warn(
+                            f"[{pipeline_name}] Size flush skipped: upload in progress"
+                        )
+                        return
+                    state.is_uploading = True
+
+                    self.get_logger().warn(
+                        f"Pipeline '{pipeline_name}' exceeded max size, resetting writer."
+                    )
+                    state.timer.reset()
+                    state.writer.finish()
+                    state.buffer.seek(0)
+                    data = state.buffer.read()
+                    self.upload_mcap(pipeline_name, data, log_time)
+                    state.buffer = BytesIO()
+                    state.writer = McapWriter(state.buffer)
+                    state.writer.start()
+                    state.current_size = 0
+
+                    state.is_uploading = False
+
                 self.get_logger().info(
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
                 )
 
                 writer: McapWriter = state.writer
                 channels = state.channels
+                schemas = state.schemas
 
-                if topic_name not in channels:
-                    schema_id = writer.register_schema(
-                        name=msg_type_str,
-                        encoding="ros2msg",  # TODO: unknown encoding
-                        data=b"",  # TODO: unknown schema
-                    )
+                channel_id = channels.get(topic_name)
+                if channel_id is None:
+                    schema_id = schemas.get(msg_type_str)
+                    if schema_id is None:
+                        try:
+                            schema_data = get_message_schema(msg_type_str)
+                        except Exception as exc:
+                            self.get_logger().warn(
+                                f"Could not generate schema for '{msg_type_str}': {exc}"
+                            )
+                            schema_data = b""
+                        schema_id = writer.register_schema(
+                            name=msg_type_str,
+                            encoding="ros2msg",
+                            data=schema_data,
+                        )
+                        schemas[msg_type_str] = schema_id
+                        state.schemas = schemas
+
                     channel_id = writer.register_channel(
                         topic=topic_name,
-                        message_encoding="cdr",  # TODO: use correct encoding
+                        message_encoding="cdr",
                         schema_id=schema_id,
                     )
                     channels[topic_name] = channel_id
 
                 writer.add_message(
-                    channel_id=channels[topic_name],
+                    channel_id=channel_id,
                     log_time=log_time,
                     data=serialized,
                     publish_time=log_time,

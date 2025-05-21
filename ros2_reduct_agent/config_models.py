@@ -1,9 +1,9 @@
 from enum import Enum
 from io import BytesIO
-from typing import Any
 
 from mcap.writer import Writer as McapWriter
 from pydantic import BaseModel, Field, field_validator
+from rclpy.timer import Timer
 
 
 class StorageConfig(BaseModel):
@@ -48,12 +48,15 @@ class PipelineConfig(BaseModel):
 
 class PipelineState(BaseModel):
     channels: dict[str, int] = Field(default_factory=dict)
+    schemas: dict[str, int] = Field(default_factory=dict)
     topics: list[str] = Field(default_factory=list)
     counter: int = 0
     timestamp: int | None = None
     buffer: BytesIO | None = None
     writer: McapWriter | None = None
-    timer: Any | None = None
+    timer: Timer | None = None
+    current_size: int = 0
+    is_uploading: bool = False
 
     class Config:
         arbitrary_types_allowed = True
