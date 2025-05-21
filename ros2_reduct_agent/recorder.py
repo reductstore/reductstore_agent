@@ -82,7 +82,7 @@ class Recorder(Node):
 
     def _create_mcap_writer(self, buffer: BytesIO) -> McapWriter:
         """Create and start an MCAP writer with the configured compression."""
-        writer = McapWriter(buffer, compression=CompressionType.NONE)
+        writer = McapWriter(buffer, compression=CompressionType.ZSTD)
         writer.start()
         return writer
 
