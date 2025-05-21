@@ -1,7 +1,6 @@
 import asyncio
 import importlib
 from collections import defaultdict
-from contextlib import contextmanager
 from io import BytesIO
 from time import time
 from typing import Any
@@ -16,25 +15,10 @@ from rclpy.subscription import Subscription
 from reduct import Client
 
 from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
-from .utils import get_message_schema
+from .utils import get_message_schema, uploading_lock
 
 
 class Recorder(Node):
-
-    @staticmethod
-    @contextmanager
-    def uploading_lock(state, logger=None, pipeline_name=None, skip_message=None):
-        if getattr(state, "is_uploading", False):
-            if logger and pipeline_name and skip_message:
-                logger.warn(f"[{pipeline_name}] {skip_message}")
-            yield False
-            return
-        state.is_uploading = True
-        try:
-            yield True
-        finally:
-            state.is_uploading = False
-
     """ROS2 node that records selected topics to ReductStore."""
 
     def __init__(self, **kwargs):
@@ -102,6 +86,43 @@ class Recorder(Node):
         writer.start()
         return writer
 
+    def _upload_pipeline(
+        self,
+        pipeline_name: str,
+        state: PipelineState,
+        timestamp: int,
+        reset_timer: bool = True,
+    ):
+        """Finish current MCAP file, upload, and reset writer and state."""
+        writer = state.writer
+        buffer = state.buffer
+        timer = state.timer
+
+        if any(x is None for x in (writer, buffer, timestamp, timer)):
+            self.get_logger().warn(
+                f"[{pipeline_name}] Missing required state - skipping upload."
+            )
+            return
+
+        writer.finish()
+        buffer.seek(0)
+        data = buffer.read()
+
+        self.upload_mcap(pipeline_name, data, timestamp)
+
+        new_buffer = BytesIO()
+        new_writer = self._create_mcap_writer(new_buffer)
+        state.current_size = 0
+        state.counter += 1
+        if reset_timer:
+            timer.reset()
+        state.buffer = new_buffer
+        state.writer = new_writer
+        state.channels = {}
+        self.get_logger().info(
+            f"[{pipeline_name}] MCAP writer reset - ready for next segment"
+        )
+
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
         after ``max_duration_s`` or when the size exceeds ``max_size_bytes``.
@@ -136,50 +157,17 @@ class Recorder(Node):
 
         def _pipeline_callback():
             state = self.pipeline_states[pipeline_name]
-            with self.uploading_lock(
+            timestamp = (
+                state.counter
+                if filename_mode == FilenameMode.COUNTER
+                else state.timestamp
+            )
+            uploading_lock(
                 state,
-                logger=self.get_logger(),
-                pipeline_name=pipeline_name,
-                skip_message="Timer skipped: upload in progress",
-            ) as acquired:
-                if not acquired:
-                    return
-
-                writer = state.writer
-                buffer = state.buffer
-                timer = state.timer
-                timestamp = (
-                    state.counter
-                    if filename_mode == FilenameMode.COUNTER
-                    else state.timestamp
-                )
-
-                if any(
-                    [writer is None, buffer is None, timestamp is None, timer is None]
-                ):
-                    self.get_logger().warn(
-                        f"[{pipeline_name}] Missing required state - skipping upload."
-                    )
-                    return
-
-                writer.finish()
-                buffer.seek(0)
-                data = buffer.read()
-
-                self.upload_mcap(pipeline_name, data, timestamp)
-
-                new_buffer = BytesIO()
-                new_writer = self._create_mcap_writer(new_buffer)
-                state.current_size = 0
-                state.counter += 1
-                timer.reset()
-
-                state.buffer = new_buffer
-                state.writer = new_writer
-                state.channels = {}
-                self.get_logger().info(
-                    f"[{pipeline_name}] MCAP writer reset - ready for next segment"
-                )
+                lambda: self._upload_pipeline(
+                    pipeline_name, state, timestamp, reset_timer=True
+                ),
+            )
 
         return _pipeline_callback
 
@@ -279,26 +267,12 @@ class Recorder(Node):
                     and state.current_size
                     > self.pipelines[pipeline_name].split_max_size_bytes
                 ):
-                    with self.uploading_lock(
+                    uploading_lock(
                         state,
-                        logger=self.get_logger(),
-                        pipeline_name=pipeline_name,
-                        skip_message="Size flush skipped: upload in progress",
-                    ) as acquired:
-                        if not acquired:
-                            return
-
-                        self.get_logger().warn(
-                            f"Pipeline '{pipeline_name}' exceeded max size, resetting writer."
-                        )
-                        state.timer.reset()
-                        state.writer.finish()
-                        state.buffer.seek(0)
-                        data = state.buffer.read()
-                        self.upload_mcap(pipeline_name, data, log_time)
-                        state.buffer = BytesIO()
-                        state.writer = self._create_mcap_writer(state.buffer)
-                        state.current_size = 0
+                        lambda: self._upload_pipeline(
+                            pipeline_name, state, log_time, reset_timer=False
+                        ),
+                    )
 
                 self.get_logger().info(
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
