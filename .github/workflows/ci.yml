@@ -48,6 +48,6 @@ jobs:
           ROS_DISTRO: jazzy
           ROS_REPO: main
           DOCKER_RUN_OPTS: "--network=host"
-          ADDITIONAL_DEBS: "python3-pip"
+          ADDITIONAL_DEBS: "python3-pip ros-${{ env.ROS_DISTRO }}-sensor-msgs ros-${{ env.ROS_DISTRO }}-geometry-msgs"
           AFTER_INIT: pip install --break-system-packages pytest mcap reduct-py
           AFTER_SCRIPT: rosenv pytest -v
