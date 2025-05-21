@@ -309,23 +309,23 @@ class Recorder(Node):
             sub = self.create_subscription(
                 msg_type,
                 topic,
-                self.topic_callback_factory(topic, msg_type_str),
+                self.make_topic_callback(topic, msg_type_str),
                 QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
             self.get_logger().info(f"Subscribed to '{topic}' [{msg_type_str}]")
 
-    def topic_callback_factory(self, topic_name: str, msg_type_str: str):
+    def make_topic_callback(self, topic_name: str, msg_type_str: str):
         """Generate a callback that writes the message to any relevant pipeline."""
 
-        def _callback(msg):
+        def _topic_callback(msg):
             serialized = self.serialize_message(msg, topic_name)
             if serialized is None:
                 return
             log_time = self.get_log_time(msg, topic_name)
             self.process_message(topic_name, msg_type_str, serialized, log_time)
 
-        return _callback
+        return _topic_callback
 
 
 def main():
