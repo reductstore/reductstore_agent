@@ -15,7 +15,7 @@ from rclpy.subscription import Subscription
 from reduct import Client
 
 from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
-from .utils import get_message_schema, uploading_lock
+from .utils import get_message_schema
 
 
 class Recorder(Node):
@@ -86,6 +86,66 @@ class Recorder(Node):
         writer.start()
         return writer
 
+    def _reset_pipeline_state(
+        self,
+        pipeline_name: str,
+        state: PipelineState,
+        timestamp: int,
+        reset_timer: bool = True,
+    ):
+        """Finish current MCAP segment, upload it, and reset writer and buffer."""
+        state.writer.finish()
+        state.buffer.seek(0)
+        data = state.buffer.read()
+        self.upload_mcap(pipeline_name, data, timestamp)
+
+        new_buffer = BytesIO()
+        new_writer = self._create_mcap_writer(new_buffer)
+        state.buffer = new_buffer
+        state.writer = new_writer
+        state.current_size = 0
+        state.counter += 1
+        if reset_timer:
+            state.timer.reset()
+        state.channels.clear()
+        self.get_logger().info(
+            f"[{pipeline_name}] MCAP writer reset - ready for next segment"
+        )
+
+    def _get_or_create_channel(
+        self,
+        writer: McapWriter,
+        state: PipelineState,
+        topic_name: str,
+        msg_type_str: str,
+    ) -> int:
+        """Return existing channel_id or register new schema and channel for topic."""
+        channel_id = state.channels.get(topic_name)
+        if channel_id is not None:
+            return channel_id
+        schema_id = state.schemas.get(msg_type_str)
+        if schema_id is None:
+            try:
+                schema_data = get_message_schema(msg_type_str)
+            except Exception as exc:
+                self.get_logger().warn(
+                    f"Could not generate schema for '{msg_type_str}': {exc}"
+                )
+                schema_data = b""
+            schema_id = writer.register_schema(
+                name=msg_type_str,
+                encoding="ros2msg",
+                data=schema_data,
+            )
+            state.schemas[msg_type_str] = schema_id
+        channel_id = writer.register_channel(
+            topic=topic_name,
+            message_encoding="cdr",
+            schema_id=schema_id,
+        )
+        state.channels[topic_name] = channel_id
+        return channel_id
+
     def _upload_pipeline(
         self,
         pipeline_name: str,
@@ -94,34 +154,12 @@ class Recorder(Node):
         reset_timer: bool = True,
     ):
         """Finish current MCAP file, upload, and reset writer and state."""
-        writer = state.writer
-        buffer = state.buffer
-        timer = state.timer
-
-        if any(x is None for x in (writer, buffer, timestamp, timer)):
+        if any(x is None for x in (state.writer, state.buffer, timestamp, state.timer)):
             self.get_logger().warn(
                 f"[{pipeline_name}] Missing required state - skipping upload."
             )
             return
-
-        writer.finish()
-        buffer.seek(0)
-        data = buffer.read()
-
-        self.upload_mcap(pipeline_name, data, timestamp)
-
-        new_buffer = BytesIO()
-        new_writer = self._create_mcap_writer(new_buffer)
-        state.current_size = 0
-        state.counter += 1
-        if reset_timer:
-            timer.reset()
-        state.buffer = new_buffer
-        state.writer = new_writer
-        state.channels = {}
-        self.get_logger().info(
-            f"[{pipeline_name}] MCAP writer reset - ready for next segment"
-        )
+        self._reset_pipeline_state(pipeline_name, state, timestamp, reset_timer)
 
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
@@ -162,12 +200,7 @@ class Recorder(Node):
                 if filename_mode == FilenameMode.COUNTER
                 else state.timestamp
             )
-            uploading_lock(
-                state,
-                lambda: self._upload_pipeline(
-                    pipeline_name, state, timestamp, reset_timer=True
-                ),
-            )
+            self._upload_pipeline(pipeline_name, state, timestamp, reset_timer=True)
 
         return _pipeline_callback
 
@@ -267,48 +300,17 @@ class Recorder(Node):
                     and state.current_size
                     > self.pipelines[pipeline_name].split_max_size_bytes
                 ):
-                    uploading_lock(
-                        state,
-                        lambda: self._upload_pipeline(
-                            pipeline_name, state, log_time, reset_timer=False
-                        ),
+                    self._upload_pipeline(
+                        pipeline_name, state, log_time, reset_timer=False
                     )
 
                 self.get_logger().info(
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
                 )
-
-                writer: McapWriter = state.writer
-                channels = state.channels
-                schemas = state.schemas
-
-                channel_id = channels.get(topic_name)
-                if channel_id is None:
-                    schema_id = schemas.get(msg_type_str)
-                    if schema_id is None:
-                        try:
-                            schema_data = get_message_schema(msg_type_str)
-                        except Exception as exc:
-                            self.get_logger().warn(
-                                f"Could not generate schema for '{msg_type_str}': {exc}"
-                            )
-                            schema_data = b""
-                        schema_id = writer.register_schema(
-                            name=msg_type_str,
-                            encoding="ros2msg",
-                            data=schema_data,
-                        )
-                        schemas[msg_type_str] = schema_id
-                        state.schemas = schemas
-
-                    channel_id = writer.register_channel(
-                        topic=topic_name,
-                        message_encoding="cdr",
-                        schema_id=schema_id,
-                    )
-                    channels[topic_name] = channel_id
-
-                writer.add_message(
+                channel_id = self._get_or_create_channel(
+                    state.writer, state, topic_name, msg_type_str
+                )
+                state.writer.add_message(
                     channel_id=channel_id,
                     log_time=log_time,
                     data=serialized,

@@ -1,26 +1,7 @@
 import os
-from contextlib import contextmanager
-from typing import Callable
 
 from ament_index_python.packages import get_package_share_directory
 from rosidl_adapter.parser import parse_message_file
-
-from ros2_reduct_agent.config_models import PipelineState
-
-
-def uploading_lock(state: PipelineState, upload_fn: Callable[[], None]) -> bool:
-    """
-    Lock uploading for a pipeline state, perform upload, and always reset the flag.
-    Returns True if upload was performed, False if skipped due to lock.
-    """
-    if state.is_uploading:
-        return False
-    state.is_uploading = True
-    try:
-        upload_fn()
-        return True
-    finally:
-        state.is_uploading = False
 
 
 def get_message_schema(msg_type_str: str, visited: set[str] = None) -> bytes:
