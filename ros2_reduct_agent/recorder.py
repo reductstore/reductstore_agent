@@ -204,6 +204,57 @@ class Recorder(Node):
 
         return _pipeline_callback
 
+    def _process_message(
+        self, topic_name: str, msg_type_str: str, serialized: bytes, log_time: int
+    ):
+        """Process serialized message for all pipelines that include the topic."""
+        for pipeline_name, state in self.pipeline_states.items():
+            if topic_name not in state.topics:
+                continue
+
+            if state.timestamp is None:
+                state.timestamp = log_time
+
+            state.current_size += len(serialized)
+            split_size = self.pipelines[pipeline_name].split_max_size_bytes
+            if split_size and state.current_size > split_size:
+                self._upload_pipeline(pipeline_name, state, log_time, reset_timer=False)
+
+            self.get_logger().info(
+                f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
+            )
+            channel_id = self._get_or_create_channel(
+                state.writer, state, topic_name, msg_type_str
+            )
+            state.writer.add_message(
+                channel_id=channel_id,
+                log_time=log_time,
+                data=serialized,
+                publish_time=log_time,
+            )
+
+    def _serialize_message(self, msg: Any, topic_name: str) -> bytes | None:
+        """Serialize a ROS2 message, logging errors if serialization fails."""
+        try:
+            return serialize_message(msg)
+        except Exception as exc:
+            self.get_logger().error(
+                f"Failed to serialise message on '{topic_name}': {exc}"
+            )
+            return None
+
+    def _get_log_time(self, msg: Any, topic_name: str) -> int:
+        """Extract log_time from message header or use current time if missing."""
+        if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
+            return int(
+                msg.header.stamp.sec * 1_000_000 + msg.header.stamp.nanosec // 1_000
+            )
+        log_time = int(time() * 1_000_000)
+        self.get_logger().warn(
+            f"Message on '{topic_name}' has no header.stamp, using current time: {log_time}"
+        )
+        return log_time
+
     def upload_mcap(self, pipeline_name: str, data: bytes, timestamp: int):
         """Upload an MCAP segment to ReductStore."""
         self.get_logger().info(
@@ -268,54 +319,11 @@ class Recorder(Node):
         """Generate a callback that writes the message to any relevant pipeline MCAP."""
 
         def _callback(msg):
-            try:
-                serialized = serialize_message(msg)
-            except Exception as exc:
-                self.get_logger().error(
-                    f"Failed to serialise message on '{topic_name}': {exc}"
-                )
+            serialized = self._serialize_message(msg, topic_name)
+            if serialized is None:
                 return
-
-            if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
-                log_time = int(
-                    msg.header.stamp.sec * 1_000_000 + msg.header.stamp.nanosec // 1_000
-                )
-            else:
-                log_time = int(time() * 1_000_000)
-                self.get_logger().warn(
-                    f"Message on '{topic_name}' has no header.stamp, using current time: {log_time}"
-                )
-
-            for pipeline_name, state in self.pipeline_states.items():
-                if topic_name not in state.topics:
-                    continue
-
-                if state.timestamp is None:
-                    state.timestamp = log_time
-
-                state.current_size += len(serialized)
-
-                if (
-                    self.pipelines[pipeline_name].split_max_size_bytes
-                    and state.current_size
-                    > self.pipelines[pipeline_name].split_max_size_bytes
-                ):
-                    self._upload_pipeline(
-                        pipeline_name, state, log_time, reset_timer=False
-                    )
-
-                self.get_logger().info(
-                    f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
-                )
-                channel_id = self._get_or_create_channel(
-                    state.writer, state, topic_name, msg_type_str
-                )
-                state.writer.add_message(
-                    channel_id=channel_id,
-                    log_time=log_time,
-                    data=serialized,
-                    publish_time=log_time,
-                )
+            log_time = self._get_log_time(msg, topic_name)
+            self._process_message(topic_name, msg_type_str, serialized, log_time)
 
         return _callback
 
