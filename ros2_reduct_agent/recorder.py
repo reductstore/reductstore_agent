@@ -92,15 +92,9 @@ class Recorder(Node):
         self,
         pipeline_name: str,
         state: PipelineState,
-        timestamp: int,
         reset_timer: bool = True,
     ):
         """Finish current MCAP, upload it, and reset writer and buffer."""
-        state.writer.finish()
-        state.buffer.seek(0)
-        data = state.buffer.read()
-        self.upload_mcap(pipeline_name, data, timestamp)
-
         new_buffer = BytesIO()
         new_writer = self.create_mcap_writer(new_buffer)
         state.buffer = new_buffer
@@ -161,7 +155,11 @@ class Recorder(Node):
                 f"[{pipeline_name}] Missing required state - skipping upload."
             )
             return
-        self.reset_pipeline_state(pipeline_name, state, timestamp, reset_timer)
+        state.writer.finish()
+        state.buffer.seek(0)
+        data = state.buffer.read()
+        self.upload_mcap(pipeline_name, data, timestamp)
+        self.reset_pipeline_state(pipeline_name, state, reset_timer)
 
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
