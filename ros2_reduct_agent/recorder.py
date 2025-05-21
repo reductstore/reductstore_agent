@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+from asyncio import run_coroutine_threadsafe
 from collections import defaultdict
 from io import BytesIO
 from time import time
@@ -28,12 +29,13 @@ class Recorder(Node):
             automatically_declare_parameters_from_overrides=True,
             **kwargs,
         )
-        self.storage = self.validate_storage_config()
-        self.pipelines = self.validate_pipeline_config()
+        self.storage = self.load_storage_config()
+        self.pipelines = self.load_pipeline_config()
 
         self.client = Client(self.storage.url, api_token=self.storage.api_token)
         self.bucket = None
-        asyncio.get_event_loop().run_until_complete(self._init_reduct_bucket())
+        self.loop = asyncio.get_event_loop()
+        self.loop.run_until_complete(self.init_reduct_bucket())
 
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
@@ -41,12 +43,12 @@ class Recorder(Node):
         self.init_mcap_writers()
         self.setup_topic_subscriptions()
 
-    async def _init_reduct_bucket(self):
+    async def init_reduct_bucket(self):
         self.bucket = await self.client.create_bucket(
             self.storage.bucket, exist_ok=True
         )
 
-    def validate_storage_config(self) -> StorageConfig:
+    def load_storage_config(self) -> StorageConfig:
         """Load and validate required storage parameters."""
         params = {}
         for key in ["url", "api_token", "bucket"]:
@@ -57,7 +59,7 @@ class Recorder(Node):
             params[key] = value
         return StorageConfig(**params)
 
-    def validate_pipeline_config(self) -> dict[str, PipelineConfig]:
+    def load_pipeline_config(self) -> dict[str, PipelineConfig]:
         """Parse and validate pipeline parameters."""
         pipelines_raw: dict[str, dict[str, Any]] = defaultdict(dict)
         for param in self.get_parameters_by_prefix("pipelines").values():
@@ -80,27 +82,27 @@ class Recorder(Node):
             pipelines[name] = PipelineConfig(**cfg)
         return pipelines
 
-    def _create_mcap_writer(self, buffer: BytesIO) -> McapWriter:
+    def create_mcap_writer(self, buffer: BytesIO) -> McapWriter:
         """Create and start an MCAP writer with the configured compression."""
         writer = McapWriter(buffer, compression=CompressionType.ZSTD)
         writer.start()
         return writer
 
-    def _reset_pipeline_state(
+    def reset_pipeline_state(
         self,
         pipeline_name: str,
         state: PipelineState,
         timestamp: int,
         reset_timer: bool = True,
     ):
-        """Finish current MCAP segment, upload it, and reset writer and buffer."""
+        """Finish current MCAP, upload it, and reset writer and buffer."""
         state.writer.finish()
         state.buffer.seek(0)
         data = state.buffer.read()
         self.upload_mcap(pipeline_name, data, timestamp)
 
         new_buffer = BytesIO()
-        new_writer = self._create_mcap_writer(new_buffer)
+        new_writer = self.create_mcap_writer(new_buffer)
         state.buffer = new_buffer
         state.writer = new_writer
         state.current_size = 0
@@ -112,7 +114,7 @@ class Recorder(Node):
             f"[{pipeline_name}] MCAP writer reset - ready for next segment"
         )
 
-    def _get_or_create_channel(
+    def get_or_create_channel(
         self,
         writer: McapWriter,
         state: PipelineState,
@@ -146,20 +148,20 @@ class Recorder(Node):
         state.channels[topic_name] = channel_id
         return channel_id
 
-    def _upload_pipeline(
+    def upload_pipeline(
         self,
         pipeline_name: str,
         state: PipelineState,
         timestamp: int,
         reset_timer: bool = True,
     ):
-        """Finish current MCAP file, upload, and reset writer and state."""
+        """Finish current MCAP, upload, and reset writer and state."""
         if any(x is None for x in (state.writer, state.buffer, timestamp, state.timer)):
             self.get_logger().warn(
                 f"[{pipeline_name}] Missing required state - skipping upload."
             )
             return
-        self._reset_pipeline_state(pipeline_name, state, timestamp, reset_timer)
+        self.reset_pipeline_state(pipeline_name, state, timestamp, reset_timer)
 
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
@@ -171,7 +173,7 @@ class Recorder(Node):
             filename_mode = cfg.filename_mode
 
             buffer = BytesIO()
-            writer = self._create_mcap_writer(buffer)
+            writer = self.create_mcap_writer(buffer)
 
             state = PipelineState(
                 topics=topics,
@@ -200,11 +202,11 @@ class Recorder(Node):
                 if filename_mode == FilenameMode.COUNTER
                 else state.timestamp
             )
-            self._upload_pipeline(pipeline_name, state, timestamp, reset_timer=True)
+            self.upload_pipeline(pipeline_name, state, timestamp, reset_timer=True)
 
         return _pipeline_callback
 
-    def _process_message(
+    def process_message(
         self, topic_name: str, msg_type_str: str, serialized: bytes, log_time: int
     ):
         """Process serialized message for all pipelines that include the topic."""
@@ -218,12 +220,12 @@ class Recorder(Node):
             state.current_size += len(serialized)
             split_size = self.pipelines[pipeline_name].split_max_size_bytes
             if split_size and state.current_size > split_size:
-                self._upload_pipeline(pipeline_name, state, log_time, reset_timer=False)
+                self.upload_pipeline(pipeline_name, state, log_time, reset_timer=False)
 
             self.get_logger().info(
                 f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
-            channel_id = self._get_or_create_channel(
+            channel_id = self.get_or_create_channel(
                 state.writer, state, topic_name, msg_type_str
             )
             state.writer.add_message(
@@ -233,8 +235,8 @@ class Recorder(Node):
                 publish_time=log_time,
             )
 
-    def _serialize_message(self, msg: Any, topic_name: str) -> bytes | None:
-        """Serialize a ROS2 message, logging errors if serialization fails."""
+    def serialize_message(self, msg: Any, topic_name: str) -> bytes | None:
+        """Serialize ROS2 message and print error if it fails."""
         try:
             return serialize_message(msg)
         except Exception as exc:
@@ -243,8 +245,8 @@ class Recorder(Node):
             )
             return None
 
-    def _get_log_time(self, msg: Any, topic_name: str) -> int:
-        """Extract log_time from message header or use current time if missing."""
+    def get_log_time(self, msg: Any, topic_name: str) -> int:
+        """Extract log_time in microsecond from message header or use current time if missing."""
         if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
             return int(
                 msg.header.stamp.sec * 1_000_000 + msg.header.stamp.nanosec // 1_000
@@ -256,7 +258,7 @@ class Recorder(Node):
         return log_time
 
     def upload_mcap(self, pipeline_name: str, data: bytes, timestamp: int):
-        """Upload an MCAP segment to ReductStore."""
+        """Upload MCAP to ReductStore."""
         self.get_logger().info(
             f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
         )
@@ -270,7 +272,7 @@ class Recorder(Node):
             )
 
         try:
-            asyncio.get_event_loop().run_until_complete(_upload())
+            run_coroutine_threadsafe(_upload(), self.loop)
         except Exception as exc:
             self.get_logger().error(
                 f"[{pipeline_name}] Failed to upload MCAP segment: {exc}"
@@ -316,14 +318,14 @@ class Recorder(Node):
             self.get_logger().info(f"Subscribed to '{topic}' [{msg_type_str}]")
 
     def topic_callback_factory(self, topic_name: str, msg_type_str: str):
-        """Generate a callback that writes the message to any relevant pipeline MCAP."""
+        """Generate a callback that writes the message to any relevant pipeline."""
 
         def _callback(msg):
-            serialized = self._serialize_message(msg, topic_name)
+            serialized = self.serialize_message(msg, topic_name)
             if serialized is None:
                 return
-            log_time = self._get_log_time(msg, topic_name)
-            self._process_message(topic_name, msg_type_str, serialized, log_time)
+            log_time = self.get_log_time(msg, topic_name)
+            self.process_message(topic_name, msg_type_str, serialized, log_time)
 
         return _callback
 
