@@ -1,11 +1,13 @@
 import asyncio
 import importlib
 from collections import defaultdict
+from contextlib import contextmanager
 from io import BytesIO
 from time import time
 from typing import Any
 
 import rclpy
+from mcap.writer import CompressionType
 from mcap.writer import Writer as McapWriter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
@@ -18,6 +20,21 @@ from .utils import get_message_schema
 
 
 class Recorder(Node):
+
+    @staticmethod
+    @contextmanager
+    def uploading_lock(state, logger=None, pipeline_name=None, skip_message=None):
+        if getattr(state, "is_uploading", False):
+            if logger and pipeline_name and skip_message:
+                logger.warn(f"[{pipeline_name}] {skip_message}")
+            yield False
+            return
+        state.is_uploading = True
+        try:
+            yield True
+        finally:
+            state.is_uploading = False
+
     """ROS2 node that records selected topics to ReductStore."""
 
     def __init__(self, **kwargs):
@@ -79,6 +96,12 @@ class Recorder(Node):
             pipelines[name] = PipelineConfig(**cfg)
         return pipelines
 
+    def _create_mcap_writer(self, buffer: BytesIO) -> McapWriter:
+        """Create and start an MCAP writer with the configured compression."""
+        writer = McapWriter(buffer, compression=CompressionType.NONE)
+        writer.start()
+        return writer
+
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
         after ``max_duration_s`` or when the size exceeds ``max_size_bytes``.
@@ -89,8 +112,7 @@ class Recorder(Node):
             filename_mode = cfg.filename_mode
 
             buffer = BytesIO()
-            writer = McapWriter(buffer)
-            writer.start()
+            writer = self._create_mcap_writer(buffer)
 
             state = PipelineState(
                 topics=topics,
@@ -114,49 +136,50 @@ class Recorder(Node):
 
         def _pipeline_callback():
             state = self.pipeline_states[pipeline_name]
-            if state.is_uploading:
-                self.get_logger().warn(
-                    f"[{pipeline_name}] Timer skipped: upload in progress"
+            with self.uploading_lock(
+                state,
+                logger=self.get_logger(),
+                pipeline_name=pipeline_name,
+                skip_message="Timer skipped: upload in progress",
+            ) as acquired:
+                if not acquired:
+                    return
+
+                writer = state.writer
+                buffer = state.buffer
+                timer = state.timer
+                timestamp = (
+                    state.counter
+                    if filename_mode == FilenameMode.COUNTER
+                    else state.timestamp
                 )
-                return
-            state.is_uploading = True
 
-            timer = state.timer
-            writer = state.writer
-            buffer = state.buffer
-            timestamp = (
-                state.counter
-                if filename_mode == FilenameMode.COUNTER
-                else state.timestamp
-            )
+                if any(
+                    [writer is None, buffer is None, timestamp is None, timer is None]
+                ):
+                    self.get_logger().warn(
+                        f"[{pipeline_name}] Missing required state - skipping upload."
+                    )
+                    return
 
-            if any([writer is None, buffer is None, timestamp is None, timer is None]):
-                self.get_logger().warn(
-                    f"[{pipeline_name}] Missing required state - skipping upload."
+                writer.finish()
+                buffer.seek(0)
+                data = buffer.read()
+
+                self.upload_mcap(pipeline_name, data, timestamp)
+
+                new_buffer = BytesIO()
+                new_writer = self._create_mcap_writer(new_buffer)
+                state.current_size = 0
+                state.counter += 1
+                timer.reset()
+
+                state.buffer = new_buffer
+                state.writer = new_writer
+                state.channels = {}
+                self.get_logger().info(
+                    f"[{pipeline_name}] MCAP writer reset - ready for next segment"
                 )
-                return
-
-            writer.finish()
-            buffer.seek(0)
-            data = buffer.read()
-
-            self.upload_mcap(pipeline_name, data, timestamp)
-
-            new_buffer = BytesIO()
-            new_writer = McapWriter(new_buffer)
-            new_writer.start()
-            state.current_size = 0
-            state.counter += 1
-            timer.reset()
-
-            state.buffer = new_buffer
-            state.writer = new_writer
-            state.channels = {}
-            self.get_logger().info(
-                f"[{pipeline_name}] MCAP writer reset - ready for next segment"
-            )
-
-            state.is_uploading = False
 
         return _pipeline_callback
 
@@ -256,27 +279,26 @@ class Recorder(Node):
                     and state.current_size
                     > self.pipelines[pipeline_name].split_max_size_bytes
                 ):
-                    if state.is_uploading:
+                    with self.uploading_lock(
+                        state,
+                        logger=self.get_logger(),
+                        pipeline_name=pipeline_name,
+                        skip_message="Size flush skipped: upload in progress",
+                    ) as acquired:
+                        if not acquired:
+                            return
+
                         self.get_logger().warn(
-                            f"[{pipeline_name}] Size flush skipped: upload in progress"
+                            f"Pipeline '{pipeline_name}' exceeded max size, resetting writer."
                         )
-                        return
-                    state.is_uploading = True
-
-                    self.get_logger().warn(
-                        f"Pipeline '{pipeline_name}' exceeded max size, resetting writer."
-                    )
-                    state.timer.reset()
-                    state.writer.finish()
-                    state.buffer.seek(0)
-                    data = state.buffer.read()
-                    self.upload_mcap(pipeline_name, data, log_time)
-                    state.buffer = BytesIO()
-                    state.writer = McapWriter(state.buffer)
-                    state.writer.start()
-                    state.current_size = 0
-
-                    state.is_uploading = False
+                        state.timer.reset()
+                        state.writer.finish()
+                        state.buffer.seek(0)
+                        data = state.buffer.read()
+                        self.upload_mcap(pipeline_name, data, log_time)
+                        state.buffer = BytesIO()
+                        state.writer = self._create_mcap_writer(state.buffer)
+                        state.current_size = 0
 
                 self.get_logger().info(
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
