@@ -1,7 +1,6 @@
 import asyncio
 import importlib
 import time
-from asyncio import run_coroutine_threadsafe
 from collections import defaultdict
 from io import BytesIO
 from typing import Any
@@ -11,7 +10,6 @@ from mcap.writer import CompressionType
 from mcap_ros2.writer import Writer as McapWriter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
-from rclpy.serialization import serialize_message
 from rclpy.subscription import Subscription
 from rclpy.time import Time
 from reduct import Client
@@ -305,15 +303,18 @@ class Recorder(Node):
         )
 
         async def _upload():
+            self.get_logger().info(
+                f"[{pipeline_name}] Uploading MCAP segment to ReductStore entry '{pipeline_name}' at {timestamp}..."
+            )
             await self.bucket.write(
-                pipeline_name, data, timestamp // 1000, content_type="application/mcap"
+                pipeline_name, data, timestamp, content_type="application/mcap"
             )
             self.get_logger().info(
-                f"[{pipeline_name}] Uploaded MCAP segment to ReductStore entry '{pipeline_name}' at {timestamp} ms."
+                f"[{pipeline_name}] MCAP segment uploaded successfully."
             )
 
         try:
-            run_coroutine_threadsafe(_upload(), self.loop)
+            self.loop.run_until_complete(_upload())
         except Exception as exc:
             self.get_logger().error(
                 f"[{pipeline_name}] Failed to upload MCAP segment: {exc}"
