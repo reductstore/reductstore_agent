@@ -23,7 +23,9 @@ def test_recorder_subscribed_to_topic():
             Parameter(
                 "pipelines.test.split.max_duration_s", Parameter.Type.INTEGER, 10
             ),
-            Parameter("pipelines.test.filename_mode", Parameter.Type.STRING, "counter"),
+            Parameter(
+                "pipelines.test.filename_mode", Parameter.Type.STRING, "incremental"
+            ),
         ]
     )
 
@@ -55,7 +57,9 @@ def test_recorder_not_subscribed_to_other_topic():
             Parameter(
                 "pipelines.test.split.max_duration_s", Parameter.Type.INTEGER, 10
             ),
-            Parameter("pipelines.test.filename_mode", Parameter.Type.STRING, "counter"),
+            Parameter(
+                "pipelines.test.filename_mode", Parameter.Type.STRING, "incremental"
+            ),
         ]
     )
 
@@ -87,7 +91,9 @@ def test_recorder_subscribed_to_multiple_topics():
             Parameter(
                 "pipelines.test.split.max_duration_s", Parameter.Type.INTEGER, 10
             ),
-            Parameter("pipelines.test.filename_mode", Parameter.Type.STRING, "counter"),
+            Parameter(
+                "pipelines.test.filename_mode", Parameter.Type.STRING, "incremental"
+            ),
         ]
     )
 

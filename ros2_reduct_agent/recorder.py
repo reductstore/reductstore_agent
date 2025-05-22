@@ -1,14 +1,14 @@
 import asyncio
 import importlib
+import time
 from asyncio import run_coroutine_threadsafe
 from collections import defaultdict
 from io import BytesIO
-from time import time
 from typing import Any
 
 import rclpy
 from mcap.writer import CompressionType
-from mcap.writer import Writer as McapWriter
+from mcap_ros2.writer import Writer as McapWriter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.serialization import serialize_message
@@ -92,9 +92,7 @@ class Recorder(Node):
     #
     def create_mcap_writer(self, buffer: BytesIO) -> McapWriter:
         """Create and start an MCAP writer with default compression."""
-        writer = McapWriter(buffer, compression=CompressionType.ZSTD)
-        writer.start()
-        return writer
+        return McapWriter(buffer, compression=CompressionType.ZSTD)
 
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
@@ -135,11 +133,10 @@ class Recorder(Node):
         state.buffer = new_buffer
         state.writer = new_writer
         state.current_size = 0
-        state.counter += 1
-        state.first_timestamp = None
+        state.incremental += 1
+        state.first_time = None
         state.timer.reset()
         state.is_uploading = False
-        state.channels.clear()
         self.get_logger().info(
             f"[{pipeline_name}] MCAP writer reset - ready for next segment"
         )
@@ -177,6 +174,8 @@ class Recorder(Node):
                 )
                 continue
 
+            self.register_message_schema(topic, msg_type_str)
+
             sub = self.create_subscription(
                 msg_type,
                 topic,
@@ -186,20 +185,23 @@ class Recorder(Node):
             self.subscribers.append(sub)
             self.get_logger().info(f"Subscribed to '{topic}' [{msg_type_str}]")
 
+    def register_message_schema(self, topic_name: str, msg_type_str: str):
+        """Register message schema for the given topic in all pipelines."""
+        for pipeline_name, state in self.pipeline_states.items():
+            if topic_name in state.topics and topic_name not in state.schemas:
+                msgdef_text = get_message_schema(msg_type_str)
+                schema = state.writer.register_msgdef(
+                    datatype=msg_type_str,
+                    msgdef_text=msgdef_text,
+                )
+                state.schemas[topic_name] = schema
+
     def make_topic_callback(self, topic_name: str, msg_type_str: str):
         """Generate a callback that writes the message to any relevant pipeline."""
 
         def _topic_callback(msg):
-            try:
-                serialized = serialize_message(msg)
-            except Exception as exc:
-                self.get_logger().error(
-                    f"Failed to serialise message on '{topic_name}': {exc}"
-                )
-                return
-
-            log_time = self.get_publish_time(msg, topic_name)
-            self.process_message(topic_name, msg_type_str, serialized, log_time)
+            publish_time = self.get_publish_time(msg, topic_name)
+            self.process_message(topic_name, msg_type_str, msg, publish_time)
 
         return _topic_callback
 
@@ -210,73 +212,41 @@ class Recorder(Node):
         self.get_logger().warn(
             f"Message on '{topic_name}' has no header.stamp, using current time."
         )
-        return int(time() * 1e9)
+        return time.time_ns()
 
     #
     # Message Processing
     #
     def process_message(
-        self, topic_name: str, msg_type_str: str, serialized: bytes, log_time: int
+        self, topic_name: str, msg_type_str: str, message: Any, publish_time: int
     ):
         """Process serialized message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
             if topic_name not in state.topics:
                 continue
 
-            if state.first_timestamp is None:
-                state.first_timestamp = log_time
-
-            state.current_size += len(serialized)  # TODO: estimate compressed size?
-            split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
-            if split_size and state.current_size > split_size:
-                self.upload_pipeline(pipeline_name, state)
+            if state.first_time is None:
+                state.first_time = publish_time
 
             self.get_logger().info(
                 f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
-            channel_id = self.get_or_create_channel(
-                state.writer, state, topic_name, msg_type_str
-            )
-            state.writer.add_message(
-                channel_id=channel_id,
-                log_time=log_time,
-                data=serialized,
-                publish_time=log_time,
-            )
 
-    def get_or_create_channel(
-        self,
-        writer: McapWriter,
-        state: PipelineState,
-        topic_name: str,
-        msg_type_str: str,
-    ) -> int:
-        """Return existing channel_id or register new schema and channel for topic."""
-        channel_id = state.channels.get(topic_name)
-        if channel_id is not None:
-            return channel_id
-        schema_id = state.schemas.get(msg_type_str)
-        if schema_id is None:
-            try:
-                schema_data = get_message_schema(msg_type_str)
-            except Exception as exc:
-                self.get_logger().warn(
-                    f"Could not generate schema for '{msg_type_str}': {exc}"
-                )
-                schema_data = b""
-            schema_id = writer.register_schema(
-                name=msg_type_str,
-                encoding="ros2msg",
-                data=schema_data,
+            schema = state.schemas[topic_name]
+            state.writer.write_message(
+                topic=topic_name,
+                schema=schema,
+                message=message,
+                publish_time=publish_time,
             )
-            state.schemas[msg_type_str] = schema_id
-        channel_id = writer.register_channel(
-            topic=topic_name,
-            message_encoding="cdr",
-            schema_id=schema_id,
-        )
-        state.channels[topic_name] = channel_id
-        return channel_id
+            state.current_size += self.estimate_message_size(message)
+            split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
+            if split_size and state.current_size > split_size:
+                self.upload_pipeline(pipeline_name, state)
+
+    def estimate_message_size(self, message: Any) -> int:
+        """Estimate the size of a message in bytes without serialization."""
+        return len(message.data) if hasattr(message, "data") else 0
 
     #
     # Pipeline Management and Upload
@@ -318,9 +288,9 @@ class Recorder(Node):
         state.is_uploading = True
         filename_mode = self.pipeline_configs[pipeline_name].filename_mode
         timestamp = (
-            state.counter
-            if filename_mode == FilenameMode.COUNTER
-            else state.first_timestamp or int(time() * 1e9)
+            state.incremental
+            if filename_mode == FilenameMode.INCREMENTAL
+            else state.first_time or time.time_ns()
         )
         state.writer.finish()
         state.buffer.seek(0)

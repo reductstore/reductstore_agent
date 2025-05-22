@@ -31,7 +31,9 @@ def test_recorder_state_size(size_kb: int):
             Parameter(
                 "pipelines.test.split.max_duration_s", Parameter.Type.INTEGER, 3600
             ),
-            Parameter("pipelines.test.filename_mode", Parameter.Type.STRING, "counter"),
+            Parameter(
+                "pipelines.test.filename_mode", Parameter.Type.STRING, "incremental"
+            ),
         ]
     )
 
@@ -45,10 +47,9 @@ def test_recorder_state_size(size_kb: int):
         rclpy.spin_once(recorder, timeout_sec=0.1)
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
 
-    # Size of 5 messages of size_kb KB each + 45 bytes for the header
     assert (
-        recorder.pipeline_states["test"].current_size == 5 * size_kb * 1024 + 45
-    ), "Recorder did not receive the expected number of large messages"
+        recorder.pipeline_states["test"].current_size == 5 * size_kb * 1024
+    ), "Recorder did not receive the expected size of data"
 
     recorder.destroy_node()
     publisher_node.destroy_node()
@@ -77,7 +78,9 @@ def test_recorder_timer_trigger(monkeypatch):
                 "pipelines.timer_test.split.max_duration_s", Parameter.Type.INTEGER, 1
             ),
             Parameter(
-                "pipelines.timer_test.filename_mode", Parameter.Type.STRING, "counter"
+                "pipelines.timer_test.filename_mode",
+                Parameter.Type.STRING,
+                "incremental",
             ),
         ]
     )
@@ -90,7 +93,7 @@ def test_recorder_timer_trigger(monkeypatch):
         uploads[0][0] == "timer_test"
     ), "Pipeline name in upload does not match expected"
     assert (
-        recorder.pipeline_states["timer_test"].counter == 1
+        recorder.pipeline_states["timer_test"].incremental == 1
     ), "Pipeline segment was not set as expected"
 
     recorder.destroy_node()

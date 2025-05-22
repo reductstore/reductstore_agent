@@ -6,7 +6,7 @@
       bucket: "ros_data"
     pipelines:
       telemetry:
-        filename_mode: "counter"
+        filename_mode: "incremental"
         include_topics:
           - /recorder/input
         split:

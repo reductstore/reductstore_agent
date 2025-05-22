@@ -36,7 +36,7 @@ def test_recorder_timer_trigger_actual_upload(reduct_client):
             Parameter(
                 "pipelines.timer_test_actual.filename_mode",
                 Parameter.Type.STRING,
-                "counter",
+                "incremental",
             ),
         ]
     )

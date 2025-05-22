@@ -4,7 +4,7 @@ from ament_index_python.packages import get_package_share_directory
 from rosidl_adapter.parser import parse_message_file
 
 
-def get_message_schema(msg_type_str: str, visited: set[str] = None) -> bytes:
+def get_message_schema(msg_type_str: str, visited: set[str] = None) -> str:
     """
     Generate a ROS2 .msg schema definition in the ros2msg MCAP format.
     Includes dependencies as delimited MSG blocks.
@@ -22,7 +22,7 @@ def get_message_schema(msg_type_str: str, visited: set[str] = None) -> bytes:
         msg_path = os.path.join(get_package_share_directory(pkg), "msg", f"{msg}.msg")
         parsed = parse_message_file(pkg, msg_path)
     except Exception as e:
-        return f"# Failed to parse {msg_type_str}: {e}".encode("utf-8")
+        return f"# Failed to parse {msg_type_str}: {e}"
 
     result = []
     if len(visited) == 1:
@@ -38,6 +38,6 @@ def get_message_schema(msg_type_str: str, visited: set[str] = None) -> bytes:
             if "/msg/" not in type_str:
                 pkg, msg = type_str.split("/")
                 type_str = f"{pkg}/msg/{msg}"
-            result.append(get_message_schema(type_str, visited).decode("utf-8"))
+            result.append(get_message_schema(type_str, visited))
 
-    return "\n".join(result).encode("utf-8")
+    return "\n".join(result)

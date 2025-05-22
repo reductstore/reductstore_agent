@@ -1,7 +1,8 @@
 from enum import Enum
 from io import BytesIO
 
-from mcap.writer import Writer as McapWriter
+from mcap.records import Schema
+from mcap_ros2.writer import Writer as McapWriter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rclpy.timer import Timer
 
@@ -23,7 +24,7 @@ class FilenameMode(str, Enum):
     """Filename mode for pipeline segments."""
 
     TIMESTAMP = "timestamp"
-    COUNTER = "counter"
+    INCREMENTAL = "incremental"
 
 
 class PipelineConfig(BaseModel):
@@ -49,11 +50,10 @@ class PipelineConfig(BaseModel):
 class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    channels: dict[str, int] = Field(default_factory=dict)
-    schemas: dict[str, int] = Field(default_factory=dict)
     topics: list[str] = Field(default_factory=list)
-    counter: int = 0
-    first_timestamp: int | None = None
+    schemas: dict[str, Schema] = Field(default_factory=dict)
+    incremental: int = 0
+    first_time: int | None = None
     buffer: BytesIO | None = None
     writer: McapWriter | None = None
     timer: Timer | None = None

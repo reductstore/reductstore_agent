@@ -43,7 +43,7 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
     pipelines:
       telemetry:
         # output_format: mcap # only mcap is supported as of now
-        filename_mode: "timestamp" # or "counter" to name files 0, 1, 2...
+        filename_mode: "timestamp" # or "incremental" to name files 0, 1, 2...
         include_topics: 
           - /recorder/input
         split:

@@ -34,7 +34,7 @@ def pipeline_params():
         Parameter(
             "pipelines.test.filename_mode",
             Parameter.Type.STRING,
-            "counter",
+            "incremental",
         ),
     ]
 
@@ -220,5 +220,7 @@ def test_pipeline_invalid_filename_mode():
             "invalid_mode",
         ),
     ]
-    with pytest.raises(ValueError, match="Input should be 'timestamp' or 'counter'"):
+    with pytest.raises(
+        ValueError, match="Input should be 'timestamp' or 'incremental'"
+    ):
         Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))
