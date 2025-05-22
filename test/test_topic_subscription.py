@@ -8,7 +8,7 @@ from ros2_reduct_agent.recorder import Recorder
 def test_recorder_subscribed_to_topic():
     """Test that the Recorder node is subscribed to the correct topic."""
     publisher = rclpy.create_node("test_publisher")
-    publisher.create_publisher(String, "/test/topic", 10)
+    publisher.create_publisher(String, "unique/test/topic", 10)
 
     recorder = Recorder(
         parameter_overrides=[
@@ -18,7 +18,7 @@ def test_recorder_subscribed_to_topic():
             Parameter(
                 "pipelines.test.include_topics",
                 Parameter.Type.STRING_ARRAY,
-                ["/test/topic"],
+                ["/unique/test/topic"],
             ),
             Parameter(
                 "pipelines.test.split.max_duration_s", Parameter.Type.INTEGER, 10
@@ -27,10 +27,10 @@ def test_recorder_subscribed_to_topic():
         ]
     )
 
-    info = recorder.get_subscriptions_info_by_topic("/test/topic")
+    info = recorder.get_subscriptions_info_by_topic("/unique/test/topic")
     assert (
         info[0].topic_type == "std_msgs/msg/String"
-    ), "Recorder is not subscribed to /test/topic"
+    ), "Recorder is not subscribed to /unique/test/topic"
     assert len(info) == 1, "Recorder is subscribed to multiple topics"
 
     publisher.destroy_node()
