@@ -34,19 +34,21 @@ This agent is tested with:
 The agent is configured using a YAML file. Each pipeline is an independent logging unit (only one type of pipeline is supported at the moment where all topics are recorded continuously without filtering).
 
 ```yaml
-recorder:
-  storage: # local ReductStore instance
-    url: "http://localhost:8383"   
-    api_token: "access_token"
-    bucket: "ros-data"
-  pipelines:
-    telemetry:
-      entry: telemetry # entry name in ReductStore
-      output_format: mcap # only mcap is supported as of now
-      # NOTE: All topics are recorded continuously. Topic filtering will be supported in future versions.
-      split:
-        max_duration_s: 300
-        max_size_bytes: 250_000_000
+/**/*:
+  ros__parameters:
+    storage: # local ReductStore instance
+      url: "http://localhost:8383"
+      api_token: "access_token"
+      bucket: "ros_data"
+    pipelines:
+      telemetry:
+        # output_format: mcap # only mcap is supported as of now
+        filename_mode: "timestamp" # or "counter" to name files 0, 1, 2...
+        include_topics: 
+          - /recorder/input
+        split:
+          max_duration_s: 3600
+          max_size_bytes: 10000
 ```
 
 ## Installing
@@ -79,42 +81,6 @@ Each pipeline has the following parameters:
 * `entry`: The name of the entry in ReductStore where the data will be stored.
 * `output_format`: The format of the output data. Currently, only `mcap` is supported.
 * `split`: A dictionary that specifies how to split the data. It can be based on maximum duration or size. The `max_duration_s` key specifies the maximum duration in seconds for each split, while the `max_size_bytes` key specifies the maximum size in bytes for each split.
-
-### Container Images
-
-| Description | Image:Tag | Default Command |
-| --- | --- | -- |
-|  |  |  |
-
-### Subscribed Topics
-
-| Topic | Type | Description |
-| --- | --- | --- |
-|  |  |  |
-
-### Published Topics
-
-| Topic | Type | Description |
-| --- | --- | --- |
-|  |  |  |
-
-### Services
-
-| Service | Type | Description |
-| --- | --- | --- |
-|  |  |  |
-
-### Actions
-
-| Action | Type | Description |
-| --- | --- | --- |
-|  |  |  |
-
-### Parameters
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-|  |  |  |
 
 ## Links
 
