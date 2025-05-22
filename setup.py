@@ -18,7 +18,7 @@ setup(
         ),
         (os.path.join("share", package_name, "config"), glob("config/*")),
     ],
-    install_requires=["setuptools", "mcap", "reduct"],
+    install_requires=["setuptools", "mcap", "mcap-ros2-support", "reduct"],
     zip_safe=True,
     maintainer="Anthony",
     maintainer_email="info@reduct.store",
