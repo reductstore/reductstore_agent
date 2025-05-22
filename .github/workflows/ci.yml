@@ -52,5 +52,5 @@ jobs:
             python3-pip
             ros-$ROS_DISTRO-sensor-msgs
             ros-$ROS_DISTRO-geometry-msgs
-          AFTER_INIT: pip install --break-system-packages pytest mcap reduct-py
+          AFTER_INIT: pip install --break-system-packages pytest mcap mcap-ros2-support reduct-py
           AFTER_SCRIPT: rosenv pytest -v

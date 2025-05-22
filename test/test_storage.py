@@ -45,7 +45,7 @@ def test_recorder_timer_trigger_actual_upload(reduct_client):
     msg.data = "test_data_actual_upload"
     publisher.publish(msg)
 
-    # Simulate a timer trigger by waiting for the segment to be uploaded
+    # Puplish messages until timer trigger
     for _ in range(5):
         rclpy.spin_once(recorder, timeout_sec=0.2)
         rclpy.spin_once(publisher_node, timeout_sec=0.2)
