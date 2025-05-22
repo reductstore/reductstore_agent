@@ -13,7 +13,7 @@ def get_message_schema(msg_type_str: str, visited: set[str] = None) -> str:
         visited = set()
 
     if msg_type_str in visited:
-        return b""
+        return ""
 
     visited.add(msg_type_str)
 
