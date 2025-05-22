@@ -51,7 +51,7 @@ class PipelineState(BaseModel):
     schemas: dict[str, int] = Field(default_factory=dict)
     topics: list[str] = Field(default_factory=list)
     counter: int = 0
-    timestamp: int | None = None
+    first_timestamp: int | None = None
     buffer: BytesIO | None = None
     writer: McapWriter | None = None
     timer: Timer | None = None
