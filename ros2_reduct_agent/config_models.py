@@ -52,7 +52,7 @@ class PipelineState(BaseModel):
 
     topics: list[str] = Field(default_factory=list)
     schemas: dict[str, Schema] = Field(default_factory=dict)
-    incremental: int = 0
+    increment: int = 0
     first_time: int | None = None
     buffer: BytesIO | None = None
     writer: McapWriter | None = None

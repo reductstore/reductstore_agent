@@ -131,7 +131,7 @@ class Recorder(Node):
         state.buffer = new_buffer
         state.writer = new_writer
         state.current_size = 0
-        state.incremental += 1
+        state.increment += 1
         state.first_time = None
         state.timer.reset()
         state.is_uploading = False
@@ -177,7 +177,7 @@ class Recorder(Node):
             sub = self.create_subscription(
                 msg_type,
                 topic,
-                self.make_topic_callback(topic, msg_type_str),
+                self.make_topic_callback(topic),
                 QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
@@ -185,7 +185,7 @@ class Recorder(Node):
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register message schema for the given topic in all pipelines."""
-        for pipeline_name, state in self.pipeline_states.items():
+        for state in self.pipeline_states.values():
             if topic_name in state.topics and topic_name not in state.schemas:
                 msgdef_text = get_message_schema(msg_type_str)
                 schema = state.writer.register_msgdef(
@@ -194,19 +194,19 @@ class Recorder(Node):
                 )
                 state.schemas[topic_name] = schema
 
-    def make_topic_callback(self, topic_name: str, msg_type_str: str):
+    def make_topic_callback(self, topic_name: str):
         """Generate a callback that writes the message to any relevant pipeline."""
 
-        def _topic_callback(msg):
-            publish_time = self.get_publish_time(msg, topic_name)
-            self.process_message(topic_name, msg_type_str, msg, publish_time)
+        def _topic_callback(message):
+            publish_time = self.get_publish_time(message, topic_name)
+            self.process_message(topic_name, message, publish_time)
 
         return _topic_callback
 
-    def get_publish_time(self, msg: Any, topic_name: str) -> int:
+    def get_publish_time(self, message: Any, topic_name: str) -> int:
         """Extract publish time from message header in nanoseconds."""
-        if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
-            return int(Time.from_msg(msg).nanoseconds)
+        if hasattr(message, "header") and hasattr(message.header, "stamp"):
+            return int(Time.from_msg(message).nanoseconds)
         self.get_logger().warn(
             f"Message on '{topic_name}' has no header.stamp, using current time."
         )
@@ -215,9 +215,7 @@ class Recorder(Node):
     #
     # Message Processing
     #
-    def process_message(
-        self, topic_name: str, msg_type_str: str, message: Any, publish_time: int
-    ):
+    def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process serialized message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
             if topic_name not in state.topics:
@@ -285,18 +283,18 @@ class Recorder(Node):
 
         state.is_uploading = True
         filename_mode = self.pipeline_configs[pipeline_name].filename_mode
-        timestamp = (
-            state.incremental
+        file_index = (
+            state.increment
             if filename_mode == FilenameMode.INCREMENTAL
-            else state.first_time or time.time_ns()
+            else (state.first_time or time.time_ns()) // 1_000
         )
         state.writer.finish()
         state.buffer.seek(0)
         data = state.buffer.read()
-        self.upload_mcap(pipeline_name, data, timestamp)
+        self.upload_mcap(pipeline_name, data, file_index)
         self.reset_pipeline_state(pipeline_name, state)
 
-    def upload_mcap(self, pipeline_name: str, data: bytes, timestamp: int):
+    def upload_mcap(self, pipeline_name: str, data: bytes, file_index: int):
         """Upload MCAP to ReductStore."""
         self.get_logger().info(
             f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
@@ -304,10 +302,10 @@ class Recorder(Node):
 
         async def _upload():
             self.get_logger().info(
-                f"[{pipeline_name}] Uploading MCAP segment to ReductStore entry '{pipeline_name}' at {timestamp}..."
+                f"[{pipeline_name}] Uploading MCAP segment to ReductStore entry '{pipeline_name}' at {file_index}..."
             )
             await self.bucket.write(
-                pipeline_name, data, timestamp, content_type="application/mcap"
+                pipeline_name, data, file_index, content_type="application/mcap"
             )
             self.get_logger().info(
                 f"[{pipeline_name}] MCAP segment uploaded successfully."

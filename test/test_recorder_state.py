@@ -93,7 +93,7 @@ def test_recorder_timer_trigger(monkeypatch):
         uploads[0][0] == "timer_test"
     ), "Pipeline name in upload does not match expected"
     assert (
-        recorder.pipeline_states["timer_test"].incremental == 1
+        recorder.pipeline_states["timer_test"].increment == 1
     ), "Pipeline segment was not set as expected"
 
     recorder.destroy_node()
