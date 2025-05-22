@@ -1,5 +1,3 @@
-from time import time
-
 import pytest
 import rclpy
 from rclpy.node import Node
