@@ -59,4 +59,5 @@ jobs:
               mcap \
               mcap-ros2-support \
               reduct-py
-          AFTER_SCRIPT: rosenv pytest -v
+          AFTER_SCRIPT: |
+            rosenv pytest --cov=ros2_reduct_agent --cov-report=term --cov-fail-under=90 test/
