@@ -7,7 +7,6 @@ from mcap.reader import make_reader
 from mcap_ros2.decoder import DecoderFactory
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
 from ros2_reduct_agent.recorder import Recorder
