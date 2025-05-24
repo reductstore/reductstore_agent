@@ -69,7 +69,8 @@ class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     topics: list[str] = Field(default_factory=list)
-    schemas: dict[str, Schema] = Field(default_factory=dict)
+    schemas_by_topic: dict[str, Schema] = Field(default_factory=dict)
+    schema_by_type: dict[str, Schema] = Field(default_factory=dict)
     increment: int = 0
     first_time: int | None = None
     buffer: SpooledTemporaryFile[bytes] | None = None

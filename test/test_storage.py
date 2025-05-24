@@ -1,6 +1,5 @@
 import asyncio
 import io
-import time as pytime
 
 import rclpy
 from mcap.reader import make_reader
@@ -63,7 +62,7 @@ def test_recorder_timer_trigger_actual_upload(reduct_client):
     for schema_, channel_, message_, ros2_msg in reader.iter_decoded_messages():
         assert channel_.topic == "/test/topic", "Topic mismatch in uploaded data"
         assert (
-            schema_.data.decode() == "# std_msgs/String\nstring data"
+            "string data" in schema_.data.decode()
         ), "Message type mismatch in uploaded data"
         assert (
             ros2_msg.data == "test_data_actual_upload"

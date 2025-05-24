@@ -13,9 +13,9 @@ from rclpy.qos import QoSProfile
 from rclpy.subscription import Subscription
 from rclpy.time import Time
 from reduct import Client
+from rosbag2_py import LocalMessageDefinitionSource
 
 from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
-from .utils import get_message_schema
 
 
 class Recorder(Node):
@@ -186,15 +186,26 @@ class Recorder(Node):
             self.get_logger().info(f"Subscribed to '{topic}' [{msg_type_str}]")
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
-        """Register message schema for the given topic in all pipelines."""
+        """Register schema once per message type and associate it with the topic."""
         for state in self.pipeline_states.values():
-            if topic_name in state.topics and topic_name not in state.schemas:
-                msgdef_text = get_message_schema(msg_type_str)
+            if topic_name not in state.topics or topic_name in state.schemas_by_topic:
+                continue
+
+            if msg_type_str in state.schema_by_type:
+                schema = state.schema_by_type[msg_type_str]
+            else:
+                source = LocalMessageDefinitionSource()
+                msg_def = source.get_full_text(msg_type_str)
                 schema = state.writer.register_msgdef(
-                    datatype=msg_type_str,
-                    msgdef_text=msgdef_text,
+                    datatype=msg_def.topic_type,
+                    msgdef_text=msg_def.encoded_message_definition,
                 )
-                state.schemas[topic_name] = schema
+                state.schema_by_type[msg_type_str] = schema
+                self.get_logger().info(
+                    f"[{topic_name}] Registered schema for message type '{msg_type_str}'"
+                )
+
+            state.schemas_by_topic[topic_name] = schema
 
     def make_topic_callback(self, topic_name: str):
         """Generate a callback that writes the message to any relevant pipeline."""
@@ -230,7 +241,7 @@ class Recorder(Node):
                 f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
 
-            schema = state.schemas[topic_name]
+            schema = state.schemas_by_topic[topic_name]
             state.writer.write_message(
                 topic=topic_name,
                 schema=schema,
