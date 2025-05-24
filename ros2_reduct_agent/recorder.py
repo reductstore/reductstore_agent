@@ -2,7 +2,7 @@ import asyncio
 import importlib
 import time
 from collections import defaultdict
-from io import BytesIO
+from tempfile import SpooledTemporaryFile
 from typing import Any
 
 import rclpy
@@ -88,7 +88,7 @@ class Recorder(Node):
     #
     # MCAP Management
     #
-    def create_mcap_writer(self, buffer: BytesIO) -> McapWriter:
+    def create_mcap_writer(self, buffer: SpooledTemporaryFile[bytes]) -> McapWriter:
         """Create and start an MCAP writer with default compression."""
         return McapWriter(buffer, compression=CompressionType.ZSTD)
 
@@ -99,8 +99,8 @@ class Recorder(Node):
         for pipeline_name, cfg in self.pipeline_configs.items():
             duration = cfg.split_max_duration_s
             topics = cfg.include_topics
-
-            buffer = BytesIO()
+            max_size = cfg.spool_max_size_bytes
+            buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
             writer = self.create_mcap_writer(buffer)
 
             state = PipelineState(
@@ -126,7 +126,9 @@ class Recorder(Node):
         state: PipelineState,
     ):
         """Finish current MCAP, upload it, and reset writer and buffer."""
-        new_buffer = BytesIO()
+        cfg = self.pipeline_configs[pipeline_name]
+        max_size = cfg.spool_max_size_bytes
+        new_buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
         new_writer = self.create_mcap_writer(new_buffer)
         state.buffer = new_buffer
         state.writer = new_writer

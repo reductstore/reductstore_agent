@@ -1,5 +1,5 @@
 from enum import Enum
-from io import BytesIO
+from tempfile import SpooledTemporaryFile
 
 from mcap.records import Schema
 from mcap_ros2.writer import Writer as McapWriter
@@ -32,6 +32,12 @@ class PipelineConfig(BaseModel):
     split_max_size_bytes: int | None = Field(
         None, alias="split.max_size_bytes", ge=1000, le=1_000_000_000
     )
+    spool_max_size_bytes: int = Field(
+        10 * 1024 * 1024,
+        alias="spool_max_size_bytes",
+        ge=1,
+        le=1_000_000_000,
+    )
     include_topics: list[str] = Field(..., alias="include_topics")
     filename_mode: FilenameMode = Field(FilenameMode.TIMESTAMP, alias="filename_mode")
 
@@ -54,7 +60,7 @@ class PipelineState(BaseModel):
     schemas: dict[str, Schema] = Field(default_factory=dict)
     increment: int = 0
     first_time: int | None = None
-    buffer: BytesIO | None = None
+    buffer: SpooledTemporaryFile[bytes] | None = None
     writer: McapWriter | None = None
     timer: Timer | None = None
     current_size: int = 0
