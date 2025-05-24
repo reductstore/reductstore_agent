@@ -54,6 +54,7 @@ jobs:
             ros-$ROS_DISTRO-geometry-msgs
             ros-$ROS_DISTRO-rosbag2-py
           AFTER_INIT: |
+            export COVERAGE_FILE=/tmp/.coverage \
             pip install --break-system-packages \
               pytest \
               pytest-cov \
@@ -61,5 +62,4 @@ jobs:
               mcap-ros2-support \
               reduct-py
           AFTER_SCRIPT: |
-            export COVERAGE_FILE=/tmp/.coverage \
             rosenv pytest --cov=ros2_reduct_agent --cov-report=term --cov-fail-under=90 test/
