@@ -52,11 +52,11 @@ jobs:
             python3-pip
             ros-$ROS_DISTRO-sensor-msgs
             ros-$ROS_DISTRO-geometry-msgs
+            ros-$ROS_DISTRO-rosbag2-py
           AFTER_INIT: |
             pip install --break-system-packages \
               pytest \
               mcap \
               mcap-ros2-support \
-              rosbag2_py \
               reduct-py
           AFTER_SCRIPT: rosenv pytest -v
