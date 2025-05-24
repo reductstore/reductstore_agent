@@ -11,4 +11,4 @@
           - /recorder/input
         split:
           max_duration_s: 10
-          max_size_bytes: 10000
+          max_size_bytes: "5MB"

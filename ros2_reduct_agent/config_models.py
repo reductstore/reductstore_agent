@@ -6,6 +6,8 @@ from mcap_ros2.writer import Writer as McapWriter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rclpy.timer import Timer
 
+from .utils import parse_bytes_with_si_units
+
 
 class StorageConfig(BaseModel):
     url: str
@@ -30,12 +32,12 @@ class FilenameMode(str, Enum):
 class PipelineConfig(BaseModel):
     split_max_duration_s: int = Field(..., alias="split.max_duration_s", ge=1, le=3600)
     split_max_size_bytes: int | None = Field(
-        None, alias="split.max_size_bytes", ge=1000, le=1_000_000_000
+        None, alias="split.max_size_bytes", ge=1_000, le=1_000_000_000
     )
     spool_max_size_bytes: int = Field(
         10 * 1024 * 1024,
         alias="spool_max_size_bytes",
-        ge=1,
+        ge=1_000,
         le=1_000_000_000,
     )
     include_topics: list[str] = Field(..., alias="include_topics")
@@ -43,14 +45,24 @@ class PipelineConfig(BaseModel):
 
     @field_validator("include_topics")
     @classmethod
-    def topics_must_be_ros_names(cls, v, info):
-        if not isinstance(v, list) or not all(
-            isinstance(t, str) and t.startswith("/") for t in v
+    def topics_must_be_ros_names(cls, value):
+        if not isinstance(value, list) or not all(
+            isinstance(t, str) and t.startswith("/") for t in value
         ):
             raise ValueError(
                 "'include_topics' must be a list of ROS topic names starting with '/'"
             )
-        return v
+        return value
+
+    @field_validator("split_max_size_bytes", "spool_max_size_bytes", mode="before")
+    @classmethod
+    def parse_si_units(cls, value):
+        return parse_bytes_with_si_units(value)
+
+    @field_validator("split_max_size_bytes", "spool_max_size_bytes", mode="before")
+    @classmethod
+    def parse_si_units(cls, value):
+        return parse_bytes_with_si_units(value)
 
 
 class PipelineState(BaseModel):
