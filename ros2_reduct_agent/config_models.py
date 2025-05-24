@@ -59,11 +59,6 @@ class PipelineConfig(BaseModel):
     def parse_si_units(cls, value):
         return parse_bytes_with_si_units(value)
 
-    @field_validator("split_max_size_bytes", "spool_max_size_bytes", mode="before")
-    @classmethod
-    def parse_si_units(cls, value):
-        return parse_bytes_with_si_units(value)
-
 
 class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
