@@ -61,5 +61,4 @@ jobs:
               mcap-ros2-support \
               reduct-py
           AFTER_SCRIPT: |
-            export COVERAGE_FILE=/tmp/.coverage
             rosenv pytest --cov=ros2_reduct_agent --cov-report=term --cov-fail-under=90 test/

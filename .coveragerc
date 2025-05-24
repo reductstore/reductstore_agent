@@ -1,0 +1,8 @@
+[run]
+branch = True
+source = ros2_reduct_agent
+
+[paths]
+ros2_reduct_agent =
+    src/ros2_reduct_agent/ros2_reduct_agent
+    install/ros2_reduct_agent/lib/python3.12/site-packages/ros2_reduct_agent
