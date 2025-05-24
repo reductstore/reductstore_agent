@@ -54,7 +54,7 @@ jobs:
             ros-$ROS_DISTRO-geometry-msgs
             ros-$ROS_DISTRO-rosbag2-py
           AFTER_INIT: |
-            export COVERAGE_FILE=/tmp/.coverage \
+            export COVERAGE_FILE=/tmp/.coverage
             pip install --break-system-packages \
               pytest \
               pytest-cov \
