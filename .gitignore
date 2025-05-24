@@ -12,3 +12,6 @@ build/
 
 # Log directory
 log/
+
+# Pytest
+.coverage
