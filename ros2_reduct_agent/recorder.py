@@ -130,6 +130,8 @@ class Recorder(Node):
         max_size = cfg.spool_max_size_bytes
         new_buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
         new_writer = self.create_mcap_writer(new_buffer)
+
+        # Update state with new writer and buffer
         state.buffer = new_buffer
         state.writer = new_writer
         state.current_size = 0
@@ -137,6 +139,18 @@ class Recorder(Node):
         state.first_time = None
         state.timer.reset()
         state.is_uploading = False
+
+        # Clear and re-register schemas for the new writer
+        state.schema_by_type.clear()
+        state.schemas_by_topic.clear()
+        topic_types = dict(self.get_topic_names_and_types())
+        for topic in state.topics:
+            msg_types = topic_types.get(topic)
+            if not msg_types:
+                continue
+            msg_type_str = msg_types[0]
+            self.register_message_schema(topic, msg_type_str)
+
         self.get_logger().info(
             f"[{pipeline_name}] MCAP writer reset - ready for next segment"
         )
@@ -269,29 +283,25 @@ class Recorder(Node):
 
         return _timer_callback
 
-    def upload_pipeline(
-        self,
-        pipeline_name: str,
-        state: PipelineState,
-    ):
-        """Finish current MCAP, upload, and reset writer and state."""
-        if any(
-            x is None
-            for x in (
-                state.writer,
-                state.buffer,
-                state.timer,
-            )
-        ):
+    def upload_pipeline(self, pipeline_name: str, state: PipelineState):
+        """Finish current MCAP, upload if it contains data, and reset writer and state."""
+        if not all([state.writer, state.buffer, state.timer]):
             self.get_logger().warn(
-                f"[{pipeline_name}] Missing required state - skipping upload."
+                f"[{pipeline_name}] Incomplete state (writer/buffer/timer) — skipping upload."
             )
             return
 
         if state.is_uploading:
             self.get_logger().warn(
-                f"[{pipeline_name}] Upload already in progress - skipping upload."
+                f"[{pipeline_name}] Upload already in progress — skipping upload."
             )
+            return
+
+        if state.current_size == 0:
+            self.get_logger().info(
+                f"[{pipeline_name}] No new data since last upload — skipping upload."
+            )
+            state.timer.reset()
             return
 
         state.is_uploading = True
