@@ -224,3 +224,57 @@ def test_pipeline_invalid_filename_mode():
         ValueError, match="Input should be 'timestamp' or 'incremental'"
     ):
         Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))
+
+
+def test_recorder_valid_extended_pipeline_params():
+    """Test that the Recorder node accepts valid chunking and compression pipeline params."""
+    extra_params = [
+        Parameter("pipelines.test.chunk_size_bytes", Parameter.Type.INTEGER, 1_000_000),
+        Parameter("pipelines.test.compression", Parameter.Type.STRING, "zstd"),
+        Parameter(
+            "pipelines.test.spool_max_size_bytes", Parameter.Type.INTEGER, 20_000_000
+        ),
+    ]
+    full_pipeline_params = pipeline_params() + extra_params
+
+    node = Recorder(
+        parameter_overrides=as_overrides(storage_params(), full_pipeline_params)
+    )
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
+def test_recorder_invalid_chunk_size():
+    """Test that an invalid chunk size raises an error."""
+    storage_dict = storage_params()
+    pipeline_params_list = pipeline_params() + [
+        Parameter("pipelines.test.chunk_size_bytes", Parameter.Type.INTEGER, 999),
+    ]
+    with pytest.raises(ValueError, match="greater than or equal to 1000"):
+        Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))
+
+
+def test_recorder_invalid_spool_size():
+    """Test that an invalid spool size raises a validation error."""
+    storage_dict = storage_params()
+    pipeline_params_list = pipeline_params() + [
+        Parameter("pipelines.test.spool_max_size_bytes", Parameter.Type.INTEGER, 999),
+    ]
+
+    with pytest.raises(ValueError, match="greater than or equal to 1000"):
+        Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))
+
+
+def test_recorder_invalid_compression():
+    """Test that an invalid compression type raises a validation error."""
+    storage_dict = storage_params()
+    pipeline_params_list = pipeline_params() + [
+        Parameter(
+            "pipelines.test.compression", Parameter.Type.STRING, "invalid_compression"
+        )
+    ]
+
+    with pytest.raises(
+        ValueError, match="String should match pattern '.*(none|lz4|zstd).*'"
+    ):
+        Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))

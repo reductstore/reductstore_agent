@@ -81,6 +81,44 @@ def basic_recorder() -> Generator[Recorder, None, None]:
 
 
 @pytest.fixture
+def low_chunk_recorder() -> Generator[Recorder, None, None]:
+    """Recorder configured with low chunk size and no compression for large message test."""
+    params = [
+        Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+        Parameter(
+            "pipelines.timer_test_topic.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.filename_mode",
+            Parameter.Type.STRING,
+            "incremental",
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.chunk_size_bytes",
+            Parameter.Type.INTEGER,
+            1024,
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.compression",
+            Parameter.Type.STRING,
+            "none",
+        ),
+    ]
+    rec = Recorder(parameter_overrides=params)
+    yield rec
+    rec.destroy_node()
+
+
+@pytest.fixture
 def parallel_recorder() -> Generator[Recorder, None, None]:
     """Recorder with two parallel pipelines: /test/topic and /rosout"""
     params = [

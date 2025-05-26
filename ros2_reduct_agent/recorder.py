@@ -6,7 +6,6 @@ from tempfile import SpooledTemporaryFile
 from typing import Any
 
 import rclpy
-from mcap.writer import CompressionType
 from mcap_ros2.writer import Writer as McapWriter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
@@ -88,9 +87,17 @@ class Recorder(Node):
     #
     # MCAP Management
     #
-    def create_mcap_writer(self, buffer: SpooledTemporaryFile[bytes]) -> McapWriter:
+    def create_mcap_writer(
+        self, buffer: SpooledTemporaryFile[bytes], pipeline_name: str
+    ) -> McapWriter:
         """Create and start an MCAP writer with default compression."""
-        return McapWriter(buffer, compression=CompressionType.ZSTD)
+        chunk_size = self.pipeline_configs[pipeline_name].chunk_size_bytes
+        compression = self.pipeline_configs[pipeline_name].compression
+        return McapWriter(
+            buffer,
+            chunk_size=chunk_size,
+            compression=compression,
+        )
 
     def init_mcap_writers(self):
         """Create an in-memory MCAP writer, per pipeline, a timer that fires
@@ -101,7 +108,7 @@ class Recorder(Node):
             topics = cfg.include_topics
             max_size = cfg.spool_max_size_bytes
             buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
-            writer = self.create_mcap_writer(buffer)
+            writer = self.create_mcap_writer(buffer, pipeline_name)
 
             state = PipelineState(
                 topics=topics,
@@ -129,7 +136,7 @@ class Recorder(Node):
         cfg = self.pipeline_configs[pipeline_name]
         max_size = cfg.spool_max_size_bytes
         new_buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
-        new_writer = self.create_mcap_writer(new_buffer)
+        new_writer = self.create_mcap_writer(new_buffer, pipeline_name)
 
         # Update state with new writer and buffer
         state.buffer = new_buffer
@@ -262,26 +269,10 @@ class Recorder(Node):
                 message=message,
                 publish_time=publish_time,
             )
-            state.current_size += self.estimate_message_size(message)
+            state.current_size = state.buffer.tell()
             split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
             if split_size and state.current_size > split_size:
                 self.upload_pipeline(pipeline_name, state)
-
-    def estimate_message_size(self, message: Any) -> int:
-        """Estimate the size of a message in bytes without serialization."""
-        if hasattr(message, "data"):
-            return len(message.data)
-        if hasattr(message, "msg"):
-            return len(message.msg)
-        elif hasattr(message, "__sizeof__"):
-            return message.__sizeof__()
-        elif hasattr(message, "__len__"):
-            return len(message)
-        else:
-            self.get_logger().warn(
-                "Unable to estimate message size, using default size of 256 bytes."
-            )
-            return 256
 
     #
     # Pipeline Management and Upload

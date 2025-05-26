@@ -26,7 +26,7 @@ def publisher(publisher_node: Node):
 
 
 @pytest.mark.parametrize("size_kb", [1, 10, 100])
-def test_recorder_state_size(publisher_node, publisher, basic_recorder, size_kb):
+def test_recorder_state_size(publisher_node, publisher, low_chunk_recorder, size_kb):
     """Test that the Recorder node can handle large messages."""
 
     msg = String()
@@ -36,12 +36,12 @@ def test_recorder_state_size(publisher_node, publisher, basic_recorder, size_kb)
         publisher.publish(msg)
 
     for _ in range(5):
-        rclpy.spin_once(basic_recorder, timeout_sec=0.1)
+        rclpy.spin_once(low_chunk_recorder, timeout_sec=0.1)
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
 
-    assert (
-        basic_recorder.pipeline_states["timer_test_topic"].current_size
-        == 5 * size_kb * 1024
+    # 5 messages of size_kb KB each plus some overhead (MCAP header, etc.)
+    assert low_chunk_recorder.pipeline_states["timer_test_topic"].current_size == 5 * (
+        size_kb * 1024 + 203
     ), "Recorder did not receive the expected size of data"
 
 
