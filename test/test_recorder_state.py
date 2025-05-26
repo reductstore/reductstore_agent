@@ -12,30 +12,22 @@ def generate_string(size_kb: int) -> str:
     return "X" * (size_kb * 1024)
 
 
-@pytest.mark.parametrize("size_kb", [1, 10, 100])
-def test_recorder_state_size(size_kb: int):
-    """Test that the Recorder node can handle large messages."""
-    publisher_node = Node("test_publisher")
-    publisher = publisher_node.create_publisher(String, "/test/topic", 10)
+@pytest.fixture
+def publisher_node():
+    node = Node("test_publisher")
+    yield node
+    node.destroy_node()
 
-    recorder = Recorder(
-        parameter_overrides=[
-            Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
-            Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
-            Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
-            Parameter(
-                "pipelines.test.include_topics",
-                Parameter.Type.STRING_ARRAY,
-                ["/test/topic"],
-            ),
-            Parameter(
-                "pipelines.test.split.max_duration_s", Parameter.Type.INTEGER, 3600
-            ),
-            Parameter(
-                "pipelines.test.filename_mode", Parameter.Type.STRING, "incremental"
-            ),
-        ]
-    )
+
+@pytest.fixture
+def publisher(publisher_node: Node):
+    pub = publisher_node.create_publisher(String, "/test/topic", 10)
+    return pub
+
+
+@pytest.mark.parametrize("size_kb", [1, 10, 100])
+def test_recorder_state_size(publisher_node, publisher, basic_recorder, size_kb):
+    """Test that the Recorder node can handle large messages."""
 
     msg = String()
     msg.data = generate_string(size_kb)
@@ -44,18 +36,16 @@ def test_recorder_state_size(size_kb: int):
         publisher.publish(msg)
 
     for _ in range(5):
-        rclpy.spin_once(recorder, timeout_sec=0.1)
+        rclpy.spin_once(basic_recorder, timeout_sec=0.1)
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
 
     assert (
-        recorder.pipeline_states["test"].current_size == 5 * size_kb * 1024
+        basic_recorder.pipeline_states["timer_test_topic"].current_size
+        == 5 * size_kb * 1024
     ), "Recorder did not receive the expected size of data"
 
-    recorder.destroy_node()
-    publisher_node.destroy_node()
 
-
-def test_recorder_timer_trigger(monkeypatch):
+def test_recorder_timer_trigger(monkeypatch, basic_recorder):
     """Test that the Recorder triggers segment reset on timer expiration."""
     uploads = []
 
@@ -68,36 +58,13 @@ def test_recorder_timer_trigger(monkeypatch):
 
     monkeypatch.setattr(Recorder, "upload_pipeline", mock_upload_pipeline)
 
-    recorder = Recorder(
-        parameter_overrides=[
-            Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
-            Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
-            Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
-            Parameter(
-                "pipelines.timer_test.include_topics",
-                Parameter.Type.STRING_ARRAY,
-                ["/test/topic"],
-            ),
-            Parameter(
-                "pipelines.timer_test.split.max_duration_s", Parameter.Type.INTEGER, 1
-            ),
-            Parameter(
-                "pipelines.timer_test.filename_mode",
-                Parameter.Type.STRING,
-                "incremental",
-            ),
-        ]
-    )
-
     # Wait for the timer to trigger
-    rclpy.spin_once(recorder, timeout_sec=1.1)
+    rclpy.spin_once(basic_recorder, timeout_sec=1.1)
 
     assert len(uploads) == 1, "Timer did not trigger upload as expected"
     assert (
-        uploads[0][0] == "timer_test"
+        uploads[0][0] == "timer_test_topic"
     ), "Pipeline name in upload does not match expected"
     assert (
-        recorder.pipeline_states["timer_test"].increment == 0
+        basic_recorder.pipeline_states["timer_test_topic"].increment == 0
     ), "An empty segement was uploaded, but it should not have been"
-
-    recorder.destroy_node()
