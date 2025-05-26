@@ -59,10 +59,14 @@ def test_recorder_timer_trigger(monkeypatch):
     """Test that the Recorder triggers segment reset on timer expiration."""
     uploads = []
 
-    def mock_upload_mcap(_, pipeline_name, data, timestamp):
-        uploads.append((pipeline_name, data, timestamp))
+    def mock_upload_pipeline(
+        _,
+        pipeline_name,
+        state,
+    ):
+        uploads.append((pipeline_name, state))
 
-    monkeypatch.setattr(Recorder, "upload_mcap", mock_upload_mcap)
+    monkeypatch.setattr(Recorder, "upload_pipeline", mock_upload_pipeline)
 
     recorder = Recorder(
         parameter_overrides=[
@@ -93,7 +97,7 @@ def test_recorder_timer_trigger(monkeypatch):
         uploads[0][0] == "timer_test"
     ), "Pipeline name in upload does not match expected"
     assert (
-        recorder.pipeline_states["timer_test"].increment == 1
-    ), "Pipeline segment was not set as expected"
+        recorder.pipeline_states["timer_test"].increment == 0
+    ), "An empty segement was uploaded, but it should not have been"
 
     recorder.destroy_node()
