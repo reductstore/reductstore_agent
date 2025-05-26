@@ -27,6 +27,8 @@ class Recorder(Node):
             automatically_declare_parameters_from_overrides=True,
             **kwargs,
         )
+        self.logger = self.get_logger()
+
         # Parameters
         self.storage_config = self.load_storage_config()
         self.pipeline_configs = self.load_pipeline_config()
@@ -94,10 +96,6 @@ class Recorder(Node):
         chunk_size = self.pipeline_configs[pipeline_name].chunk_size_bytes
         compression = self.pipeline_configs[pipeline_name].compression
         enable_crcs = self.pipeline_configs[pipeline_name].enable_crcs
-        self.get_logger().info(
-            f"[{pipeline_name}] Creating MCAP writer with chunk size {chunk_size} bytes, "
-            f"compression '{compression}', enable CRCS: {enable_crcs}"
-        )
         return McapWriter(
             buffer,
             chunk_size=chunk_size,
@@ -129,7 +127,7 @@ class Recorder(Node):
             )
             state.timer = timer
 
-            self.get_logger().info(
+            self.logger.info(
                 f"[{pipeline_name}] MCAP writer initialised (every {duration}s) with topics: {state.topics}"
             )
 
@@ -164,7 +162,7 @@ class Recorder(Node):
             msg_type_str = msg_types[0]
             self.register_message_schema(topic, msg_type_str)
 
-        self.get_logger().info(
+        self.logger.debug(
             f"[{pipeline_name}] MCAP writer reset - ready for next segment"
         )
 
@@ -181,12 +179,12 @@ class Recorder(Node):
         for topic in topics_to_subscribe:
             msg_types = topic_types.get(topic)
             if not msg_types:
-                self.get_logger().warn(f"Skipping '{topic}': No message type found.")
+                self.logger.warn(f"Skipping '{topic}': No message type found.")
                 continue
 
             msg_type_str = msg_types[0]
             if "/msg/" not in msg_type_str:
-                self.get_logger().warn(
+                self.logger.warn(
                     f"Skipping '{topic}': Invalid message type format '{msg_type_str}'."
                 )
                 continue
@@ -196,7 +194,7 @@ class Recorder(Node):
                 module = importlib.import_module(f"{pkg}.msg")
                 msg_type = getattr(module, msg)
             except (ModuleNotFoundError, AttributeError) as e:
-                self.get_logger().warn(
+                self.logger.warn(
                     f"Skipping '{topic}': Cannot import '{msg_type_str}' ({e})"
                 )
                 continue
@@ -210,7 +208,7 @@ class Recorder(Node):
                 QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
-            self.get_logger().info(f"Subscribed to '{topic}' [{msg_type_str}]")
+            self.logger.info(f"Subscribed to '{topic}' [{msg_type_str}]")
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register schema once per message type and associate it with the topic."""
@@ -228,7 +226,7 @@ class Recorder(Node):
                     msgdef_text=msg_def.encoded_message_definition,
                 )
                 state.schema_by_type[msg_type_str] = schema
-                self.get_logger().info(
+                self.logger.debug(
                     f"[{topic_name}] Registered schema for message type '{msg_type_str}'"
                 )
 
@@ -247,7 +245,7 @@ class Recorder(Node):
         """Extract publish time from message header in nanoseconds."""
         if hasattr(message, "header") and hasattr(message.header, "stamp"):
             return int(Time.from_msg(message).nanoseconds)
-        self.get_logger().warn(
+        self.logger.warn(
             f"Message on '{topic_name}' has no header.stamp, using current time."
         )
         return time.time_ns()
@@ -264,7 +262,7 @@ class Recorder(Node):
             if state.first_time is None:
                 state.first_time = publish_time
 
-            self.get_logger().info(
+            self.logger.debug(
                 f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
 
@@ -295,19 +293,19 @@ class Recorder(Node):
     def upload_pipeline(self, pipeline_name: str, state: PipelineState):
         """Finish current MCAP, upload if it contains data, and reset writer and state."""
         if not all([state.writer, state.buffer, state.timer]):
-            self.get_logger().warn(
+            self.logger.warn(
                 f"[{pipeline_name}] Incomplete state (writer/buffer/timer) — skipping upload."
             )
             return
 
         if state.is_uploading:
-            self.get_logger().warn(
+            self.logger.warn(
                 f"[{pipeline_name}] Upload already in progress — skipping upload."
             )
             return
 
         if state.current_size == 0:
-            self.get_logger().info(
+            self.logger.info(
                 f"[{pipeline_name}] No new data since last upload — skipping upload."
             )
             state.timer.reset()
@@ -328,27 +326,19 @@ class Recorder(Node):
 
     def upload_mcap(self, pipeline_name: str, data: bytes, file_index: int):
         """Upload MCAP to ReductStore."""
-        self.get_logger().info(
+        self.logger.info(
             f"[{pipeline_name}] MCAP segment ready. Uploading to ReductStore..."
         )
 
         async def _upload():
-            self.get_logger().info(
-                f"[{pipeline_name}] Uploading MCAP segment to ReductStore entry '{pipeline_name}' at {file_index}..."
-            )
             await self.bucket.write(
                 pipeline_name, data, file_index, content_type="application/mcap"
-            )
-            self.get_logger().info(
-                f"[{pipeline_name}] MCAP segment uploaded successfully."
             )
 
         try:
             self.loop.run_until_complete(_upload())
         except Exception as exc:
-            self.get_logger().error(
-                f"[{pipeline_name}] Failed to upload MCAP segment: {exc}"
-            )
+            self.logger.error(f"[{pipeline_name}] Failed to upload MCAP segment: {exc}")
 
 
 def main():
