@@ -34,6 +34,17 @@ class PipelineConfig(BaseModel):
     split_max_size_bytes: int | None = Field(
         None, alias="split.max_size_bytes", ge=1_000, le=1_000_000_000
     )
+    chunk_size_bytes: int = Field(
+        1024 * 1024,
+        alias="chunk_size_bytes",
+        ge=1_000,
+        le=10 * 1024 * 1024,
+    )
+    compression: str = Field(
+        "zstd",
+        alias="compression",
+        pattern=r"^(none|lz4|zstd)$",
+    )
     spool_max_size_bytes: int = Field(
         10 * 1024 * 1024,
         alias="spool_max_size_bytes",
