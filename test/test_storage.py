@@ -192,6 +192,7 @@ def test_recorder_timer_trigger_parallel_pipeline_with_rosout(reduct_client):
         assert (
             ros2_msg.data == "test_data_actual_upload"
         ), f"[{i}] Data mismatch for /test/topic"
+        assert message_.channel_id == 1, f"[{i}] Channel ID  should be 1"
 
     # Check /rosout record (should contain at least one message, but type is rcl_interfaces/msg/Log)
     reader = make_reader(
@@ -208,6 +209,7 @@ def test_recorder_timer_trigger_parallel_pipeline_with_rosout(reduct_client):
             schema_.name == "rcl_interfaces/msg/Log"
         ), f"[{i}] Schema name should be 'rcl_interfaces/msg/Log'"
         assert channel_.topic == "/rosout", f"[{i}] Topic mismatch in uploaded data"
+        assert message_.channel_id == 1, f"[{i}] Channel ID  should be 1"
 
     recorder.destroy_node()
     publisher_node.destroy_node()
