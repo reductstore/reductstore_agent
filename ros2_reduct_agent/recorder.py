@@ -27,6 +27,7 @@ class Recorder(Node):
             **kwargs,
         )
         self.logger = self.get_logger()
+        self.warned_topics: set[str] = set()
 
         # Parameters
         self.storage_config = self.load_storage_config()
@@ -247,9 +248,12 @@ class Recorder(Node):
         elif hasattr(message, "stamp"):
             return Time.from_msg(message.stamp).nanoseconds
 
-        self.logger.warn(
-            f"Message on '{topic_name}' has no timestamp, using current ROS time."
-        )
+        if topic_name not in self.warned_topics:
+            self.logger.warn(
+                f"Message on topic '{topic_name}' has no timestamp. Using current time."
+            )
+            self.warned_topics.add(topic_name)
+
         return self.get_clock().now().nanoseconds
 
     #
