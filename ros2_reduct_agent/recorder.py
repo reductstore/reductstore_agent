@@ -269,7 +269,19 @@ class Recorder(Node):
 
     def estimate_message_size(self, message: Any) -> int:
         """Estimate the size of a message in bytes without serialization."""
-        return len(message.data) if hasattr(message, "data") else 0
+        if hasattr(message, "data"):
+            return len(message.data)
+        if hasattr(message, "msg"):
+            return len(message.msg)
+        elif hasattr(message, "__sizeof__"):
+            return message.__sizeof__()
+        elif hasattr(message, "__len__"):
+            return len(message)
+        else:
+            self.get_logger().warn(
+                "Unable to estimate message size, using default size of 256 bytes."
+            )
+            return 256
 
     #
     # Pipeline Management and Upload

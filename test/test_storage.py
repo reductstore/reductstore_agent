@@ -22,17 +22,17 @@ def test_recorder_timer_trigger_actual_upload(reduct_client):
             Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
             Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
             Parameter(
-                "pipelines.timer_test_actual.include_topics",
+                "pipelines.timer_test_topic.include_topics",
                 Parameter.Type.STRING_ARRAY,
                 ["/test/topic"],
             ),
             Parameter(
-                "pipelines.timer_test_actual.split.max_duration_s",
+                "pipelines.timer_test_topic.split.max_duration_s",
                 Parameter.Type.INTEGER,
                 1,
             ),
             Parameter(
-                "pipelines.timer_test_actual.filename_mode",
+                "pipelines.timer_test_topic.filename_mode",
                 Parameter.Type.STRING,
                 "incremental",
             ),
@@ -54,7 +54,7 @@ def test_recorder_timer_trigger_actual_upload(reduct_client):
     async def check_reduct_data():
         data_all = []
         bucket = await reduct_client.get_bucket("test_bucket")
-        async for record in bucket.query("timer_test_actual"):
+        async for record in bucket.query("timer_test_topic"):
             data_all.append(await record.read_all())
         return data_all
 
@@ -103,6 +103,111 @@ def test_recorder_timer_trigger_actual_upload(reduct_client):
             assert (
                 message_.publish_time < message_.log_time
             ), f"[{i}] Publish time should be less than or equal to log time"
+
+    recorder.destroy_node()
+    publisher_node.destroy_node()
+
+
+def test_recorder_timer_trigger_parallel_pipeline_with_rosout(reduct_client):
+    """Test Recorder uploads to ReductStore for two pipelines in parallel: /test/topic (published) and /rosout (system topic, only subscribed)."""
+    publisher_node = Node("test_publisher_parallel_rosout")
+    publisher = publisher_node.create_publisher(String, "/test/topic", 10)
+
+    recorder = Recorder(
+        parameter_overrides=[
+            Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+            Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+            Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+            Parameter(
+                "pipelines.timer_test_topic.include_topics",
+                Parameter.Type.STRING_ARRAY,
+                ["/test/topic"],
+            ),
+            Parameter(
+                "pipelines.timer_test_topic.split.max_duration_s",
+                Parameter.Type.INTEGER,
+                1,
+            ),
+            Parameter(
+                "pipelines.timer_test_topic.filename_mode",
+                Parameter.Type.STRING,
+                "incremental",
+            ),
+            Parameter(
+                "pipelines.timer_rosout.include_topics",
+                Parameter.Type.STRING_ARRAY,
+                ["/rosout"],
+            ),
+            Parameter(
+                "pipelines.timer_rosout.split.max_duration_s",
+                Parameter.Type.INTEGER,
+                1,
+            ),
+            Parameter(
+                "pipelines.timer_rosout.filename_mode",
+                Parameter.Type.STRING,
+                "incremental",
+            ),
+        ]
+    )
+
+    msg = String()
+    msg.data = "test_data_actual_upload"
+    publisher.publish(msg)
+    for _ in range(10):
+        rclpy.spin_once(publisher_node, timeout_sec=0.2)
+        rclpy.spin_once(recorder, timeout_sec=0.2)
+
+    async def check_reduct_data():
+        data_test_topic = []
+        data_rosout = []
+        bucket = await reduct_client.get_bucket("test_bucket")
+        async for record in bucket.query("timer_test_topic"):
+            data_test_topic.append(await record.read_all())
+        async for record in bucket.query("timer_rosout"):
+            data_rosout.append(await record.read_all())
+        return data_test_topic, data_rosout
+
+    loop = asyncio.get_event_loop()
+    data_test_topic, data_rosout = loop.run_until_complete(check_reduct_data())
+    assert len(data_test_topic) >= 1, "No data found in ReductStore for /test/topic"
+    assert len(data_rosout) >= 1, "No data found in ReductStore for /rosout"
+
+    # Check /test/topic record
+    reader = make_reader(
+        io.BytesIO(data_test_topic[0]), decoder_factories=[DecoderFactory()]
+    )
+    message_count = reader.get_summary().statistics.message_count
+    assert (
+        message_count >= 1
+    ), f"Expected at least 1 message in /test/topic record, found {message_count}"
+    for i, (schema_, channel_, message_, ros2_msg) in enumerate(
+        reader.iter_decoded_messages()
+    ):
+        assert "string data" in schema_.data.decode(), f"[{i}] Message type mismatch"
+        assert (
+            schema_.name == "std_msgs/msg/String"
+        ), f"[{i}] Schema name should be 'std_msgs/msg/String'"
+        assert channel_.topic == "/test/topic", f"[{i}] Topic mismatch in uploaded data"
+        assert (
+            ros2_msg.data == "test_data_actual_upload"
+        ), f"[{i}] Data mismatch for /test/topic"
+
+    # Check /rosout record (should contain at least one message, but type is rcl_interfaces/msg/Log)
+    reader = make_reader(
+        io.BytesIO(data_rosout[0]), decoder_factories=[DecoderFactory()]
+    )
+    message_count = reader.get_summary().statistics.message_count
+    assert (
+        message_count >= 1
+    ), f"Expected at least 1 message in /rosout record, found {message_count}"
+    for i, (schema_, channel_, message_, ros2_msg) in enumerate(
+        reader.iter_decoded_messages()
+    ):
+        assert (
+            schema_.name == "rcl_interfaces/msg/Log"
+        ), f"[{i}] Schema name should be 'rcl_interfaces/msg/Log'"
+        assert channel_.topic == "/rosout", f"[{i}] Topic mismatch in uploaded data"
 
     recorder.destroy_node()
     publisher_node.destroy_node()
