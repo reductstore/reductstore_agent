@@ -93,10 +93,16 @@ class Recorder(Node):
         """Create and start an MCAP writer with default compression."""
         chunk_size = self.pipeline_configs[pipeline_name].chunk_size_bytes
         compression = self.pipeline_configs[pipeline_name].compression
+        enable_crcs = self.pipeline_configs[pipeline_name].enable_crcs
+        self.get_logger().info(
+            f"[{pipeline_name}] Creating MCAP writer with chunk size {chunk_size} bytes, "
+            f"compression '{compression}', enable CRCS: {enable_crcs}"
+        )
         return McapWriter(
             buffer,
             chunk_size=chunk_size,
             compression=compression,
+            enable_crcs=enable_crcs,
         )
 
     def init_mcap_writers(self):

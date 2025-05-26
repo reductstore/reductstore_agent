@@ -45,6 +45,7 @@ class PipelineConfig(BaseModel):
         alias="compression",
         pattern=r"^(none|lz4|zstd)$",
     )
+    enable_crcs: bool = Field(True, alias="enable_crcs")
     spool_max_size_bytes: int = Field(
         10 * 1024 * 1024,
         alias="spool_max_size_bytes",

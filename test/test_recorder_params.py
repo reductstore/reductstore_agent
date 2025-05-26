@@ -226,7 +226,7 @@ def test_pipeline_invalid_filename_mode():
         Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))
 
 
-def test_recorder_valid_extended_pipeline_params():
+def test_recorder_valid_mcap_pipeline_params():
     """Test that the Recorder node accepts valid chunking and compression pipeline params."""
     extra_params = [
         Parameter("pipelines.test.chunk_size_bytes", Parameter.Type.INTEGER, 1_000_000),
@@ -234,6 +234,7 @@ def test_recorder_valid_extended_pipeline_params():
         Parameter(
             "pipelines.test.spool_max_size_bytes", Parameter.Type.INTEGER, 20_000_000
         ),
+        Parameter("pipelines.test.enable_crcs", Parameter.Type.BOOL, True),
     ]
     full_pipeline_params = pipeline_params() + extra_params
 
@@ -278,3 +279,11 @@ def test_recorder_invalid_compression():
         ValueError, match="String should match pattern '.*(none|lz4|zstd).*'"
     ):
         Recorder(parameter_overrides=as_overrides(storage_dict, pipeline_params_list))
+
+
+def test_recorder_invalid_enable_crcs():
+    """Test that an invalid enable_crcs value raises a type/value error at parameter construction."""
+    with pytest.raises(
+        ValueError, match="Type 'Type.BOOL' and value 'not_a_bool' do not agree"
+    ):
+        Parameter("pipelines.test.enable_crcs", Parameter.Type.BOOL, "not_a_bool")
