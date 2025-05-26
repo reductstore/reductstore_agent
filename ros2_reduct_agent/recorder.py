@@ -1,6 +1,5 @@
 import asyncio
 import importlib
-import time
 from collections import defaultdict
 from tempfile import SpooledTemporaryFile
 from typing import Any
@@ -242,13 +241,16 @@ class Recorder(Node):
         return _topic_callback
 
     def get_publish_time(self, message: Any, topic_name: str) -> int:
-        """Extract publish time from message header in nanoseconds."""
+        """Extract publish time from message (header.stamp or top-level stamp) in nanoseconds."""
         if hasattr(message, "header") and hasattr(message.header, "stamp"):
-            return int(Time.from_msg(message).nanoseconds)
+            return Time.from_msg(message.header.stamp).nanoseconds
+        elif hasattr(message, "stamp"):
+            return Time.from_msg(message.stamp).nanoseconds
+
         self.logger.warn(
-            f"Message on '{topic_name}' has no header.stamp, using current time."
+            f"Message on '{topic_name}' has no timestamp, using current ROS time."
         )
-        return time.time_ns()
+        return self.get_clock().now().nanoseconds
 
     #
     # Message Processing
@@ -316,7 +318,7 @@ class Recorder(Node):
         file_index = (
             state.increment
             if filename_mode == FilenameMode.INCREMENTAL
-            else (state.first_time or time.time_ns()) // 1_000
+            else (state.first_time or self.get_clock().now().nanoseconds) // 1_000
         )
         state.writer.finish()
         state.buffer.seek(0)
