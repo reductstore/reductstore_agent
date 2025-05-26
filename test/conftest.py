@@ -17,7 +17,7 @@ def ros_context():
     rclpy.shutdown()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def reduct_client():
     """Provides a clean ReductStore client by recreating the test bucket before and after the session."""
     loop = asyncio.get_event_loop()
