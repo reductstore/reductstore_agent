@@ -83,7 +83,7 @@ def test_recorder_missing_storage_param(missing_key):
         Recorder(parameter_overrides=as_overrides(params))
 
 
-@pytest.mark.parametrize("empty_key", ["url", "api_token", "bucket"])
+@pytest.mark.parametrize("empty_key", ["url", "bucket"])
 def test_recorder_empty_storage_value(empty_key):
     """Test that the Recorder node raises an error if a required parameter is empty."""
     params = storage_params()

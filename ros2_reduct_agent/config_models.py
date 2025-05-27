@@ -11,13 +11,13 @@ from .utils import parse_bytes_with_si_units
 
 class StorageConfig(BaseModel):
     url: str
-    api_token: str
     bucket: str
+    api_token: str = ""
 
-    @field_validator("url", "api_token", "bucket")
+    @field_validator("url", "bucket")
     @classmethod
     def not_empty(cls, v, info):
-        if not v:
+        if not v.strip():
             raise ValueError(f"'{info.field_name}' must not be empty")
         return v
 
