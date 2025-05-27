@@ -35,10 +35,10 @@ class PipelineConfig(BaseModel):
         None, alias="split.max_size_bytes", ge=1_000, le=1_000_000_000
     )
     chunk_size_bytes: int = Field(
-        1024 * 1024,
+        1_000_000,
         alias="chunk_size_bytes",
         ge=1_000,
-        le=10 * 1024 * 1024,
+        le=10_000_000,
     )
     compression: str = Field(
         "zstd",
@@ -47,7 +47,7 @@ class PipelineConfig(BaseModel):
     )
     enable_crcs: bool = Field(True, alias="enable_crcs")
     spool_max_size_bytes: int = Field(
-        10 * 1024 * 1024,
+        10_000_000,
         alias="spool_max_size_bytes",
         ge=1_000,
         le=1_000_000_000,
@@ -66,7 +66,13 @@ class PipelineConfig(BaseModel):
             )
         return value
 
-    @field_validator("split_max_size_bytes", "spool_max_size_bytes", mode="before")
+    @field_validator(
+        "split_max_size_bytes",
+        "spool_max_size_bytes",
+        "chunk_size_bytes",
+        "spool_max_size_bytes",
+        mode="before",
+    )
     @classmethod
     def parse_si_units(cls, value):
         return parse_bytes_with_si_units(value)

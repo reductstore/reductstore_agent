@@ -8,10 +8,6 @@
 
 This agent is fully configurable via YAML and designed to solve storage, bandwidth, and workflow limitations commonly found in field robotics. It streams data to ReductStore in near real-time with optional compression, splitting, dynamic labeling, and per-pipeline controls.
 
-
-- [Container Images](#container-images)
-- [ros2_reduct_agent](#ros2_reduct_agent)
-
 ## System Requirements
 
 To use this agent, you must have a running instance of ReductStore. You can start a local instance using Docker, install it via Snap or from binaries. Refer to the official guide for setup instructions: [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started)
@@ -42,14 +38,15 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
       bucket: "ros_data"
     pipelines:
       telemetry:
-        # output_format: mcap # only mcap is supported as of now
-        filename_mode: "timestamp" # or "incremental" to name files 0, 1, 2...
+        filename_mode: "timestamp"
         include_topics: 
           - /recorder/input
         split:
           max_duration_s: 3600
           max_size_bytes: 10000
 ```
+
+See the [Configuration](#configuration) section for details on available parameters.
 
 ## Installing
 
@@ -75,14 +72,48 @@ ros2 run ros2_reduct_agent recorder --ros-args --params-file ./config.yaml
 
 ## Configuration
 
-The configuration file is a YAML file that defines the storage settings and pipelines. The `storage` section contains ReductStore connection details, including the URL, API token, and bucket name. The `pipelines` section defines the individual pipelines for recording data.
+The configuration file is a YAML file that defines the storage settings and pipelines. The `storage` section contains ReductStore connection details, and the `pipelines` section defines the individual pipelines for recording data.
 
-Each pipeline has the following parameters:
-* `entry`: The name of the entry in ReductStore where the data will be stored.
-* `output_format`: The format of the output data. Currently, only `mcap` is supported.
-* `split`: A dictionary that specifies how to split the data. It can be based on maximum duration or size. The `max_duration_s` key specifies the maximum duration in seconds for each split, while the `max_size_bytes` key specifies the maximum size in bytes for each split.
+### Storage Configuration
+
+The `storage` section specifies the ReductStore instance to connect to:
+
+ * **`url`**: The URL of the ReductStore instance (e.g., `http://localhost:8383`).
+ * **`api_token`**: The API token for authentication. This is required to access the ReductStore instance.
+ * **`bucket`**: The bucket name where the data will be stored.
+
+ More information on how to setup ReductStore can be found in the [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started).
+
+### Pipeline Parameters
+
+Each pipeline supports the following parameters:
+
+* **`split`**:
+
+  * **`max_duration_s`**: Maximum duration (in seconds) for each data segment. Must be between `1` and `3600`.
+  * **`max_size_bytes`** *(optional)*: Maximum size (in bytes) for each segment. Must be between `1KB` and `1GB`.
+
+* **`chunk_size_bytes`**: Size of each MCAP chunk in bytes. Defaults to `1MB`. Must be between `1KB` and `10MB`.
+
+* **`compression`**: Compression algorithm to use. One of:
+
+  * `"none"`
+  * `"lz4"`
+  * `"zstd"` *(default)*
+
+* **`enable_crcs`**: Whether to enable CRC checks. Defaults to `true`.
+
+* **`spool_max_size_bytes`**: Maximum in-memory spool size before flushing. Defaults to `10MB`. Must be between `1KB` and `1GB`.
+
+* **`include_topics`**: A list of ROS topics to record. Each topic must start with a `/`.
+
+* **`filename_mode`**: Determines how filenames are generated. One of:
+
+  * `"timestamp"` *(default)* — Use first topic timestamp for filenames.
+  * `"incremental"` — Use incrementing numbers (0, 1, 2, ...) for filenames.
 
 ## Links
 
 * ReductStore Docs: [https://www.reduct.store/docs/getting-started](https://www.reduct.store/docs/getting-started)
 * Ubuntu Core Robotics Telemetry: [https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry](https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry)
+
