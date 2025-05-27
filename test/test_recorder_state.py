@@ -39,7 +39,7 @@ def test_recorder_state_size(publisher_node, publisher, low_chunk_recorder, size
         rclpy.spin_once(low_chunk_recorder, timeout_sec=0.1)
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
 
-    # 5 messages of size_kb KB each plus some overhead (MCAP header, etc.)
+    # 5 messages of size_kb KB each plus 203 bytes for MCAP overhead (Schema, Channel, etc.)
     assert low_chunk_recorder.pipeline_states["timer_test_topic"].current_size == 5 * (
         size_kb * 1024 + 203
     ), "Recorder did not receive the expected size of data"

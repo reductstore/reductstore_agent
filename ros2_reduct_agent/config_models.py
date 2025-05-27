@@ -71,6 +71,21 @@ class PipelineConfig(BaseModel):
     def parse_si_units(cls, value):
         return parse_bytes_with_si_units(value)
 
+    def format_for_log(self) -> str:
+        config_items = self.model_dump(by_alias=True)
+        lines = []
+        for k, v in config_items.items():
+            if isinstance(v, list):
+                val_str = "[" + ", ".join(repr(i) for i in v) + "]"
+            elif isinstance(v, FilenameMode):
+                val_str = v.value
+            elif isinstance(v, str):
+                val_str = f'"{v}"'
+            else:
+                val_str = str(v)
+            lines.append(f"  - {k}: {val_str}")
+        return "\n".join(lines)
+
 
 class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -79,7 +94,7 @@ class PipelineState(BaseModel):
     schemas_by_topic: dict[str, Schema] = Field(default_factory=dict)
     schema_by_type: dict[str, Schema] = Field(default_factory=dict)
     increment: int = 0
-    first_time: int | None = None
+    first_timestamp: int | None = None
     buffer: SpooledTemporaryFile[bytes] | None = None
     writer: McapWriter | None = None
     timer: Timer | None = None
