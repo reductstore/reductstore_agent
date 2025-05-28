@@ -1,3 +1,22 @@
 /**/*:
   ros__parameters:
-    param: 1.0
+    storage:
+      url: "http://localhost:8383"
+      api_token: "access_token"
+      bucket: "ros_data"
+    pipelines:
+      telemetry:
+        filename_mode: "incremental"
+        include_topics:
+          - /recorder/input
+        split:
+          max_duration_s: 10
+          max_size_bytes: "5MB"
+      rosout:
+        filename_mode: "incremental"
+        include_topics:
+          - /rosout
+        split:
+          max_duration_s: 10
+          max_size_bytes: "5MB"
+      

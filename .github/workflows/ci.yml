@@ -1,0 +1,70 @@
+name: ros2-reduct-agent CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-format:
+    name: Lint and Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linting and formatting tools
+        # TODO: use pylint for linting
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort
+
+      - name: Run Black
+        run: black --check .
+
+      - name: Run isort
+        run: isort --check-only .
+
+  ros2-tests:
+    name: Build & Pytest (ROS 2 Jazzy) with ReductStore
+    runs-on: ubuntu-latest
+
+    services:
+      reductstore:
+        image: reduct/store:main
+        ports:
+          - 8383:8383
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run pytest
+        uses: ros-industrial/industrial_ci@master
+        env:
+          ROS_DISTRO: jazzy
+          ROS_REPO: main
+          DOCKER_RUN_OPTS: "--network=host"
+          ADDITIONAL_DEBS: >
+            python3-pip
+            ros-$ROS_DISTRO-sensor-msgs
+            ros-$ROS_DISTRO-geometry-msgs
+            ros-$ROS_DISTRO-rosbag2-py
+          AFTER_INIT: |
+            pip install --break-system-packages \
+              pytest \
+              pytest-cov \
+              mcap \
+              mcap-ros2-support \
+              reduct-py
+          AFTER_SCRIPT: |
+            export COVERAGE_FILE=/tmp/.coverage
+            rosenv pytest \
+              --cov=/root/target_ws/install/ros2_reduct_agent/lib/python3.12/site-packages/ros2_reduct_agent \
+              --cov-report=term \
+              --cov-fail-under=90 \
+              test/

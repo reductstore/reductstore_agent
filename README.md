@@ -1,15 +1,12 @@
 # ros2_reduct_agent
 
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/reductstore/ros2_reduct_agent/ci.yml?branch=main)](https://github.com/reductstore/ros2_reduct_agent/actions)
 [![Community](https://img.shields.io/discourse/status?server=https%3A%2F%2Fcommunity.reduct.store
 )](https://community.reduct.store/signup)
 
 **ros2-reduct-agent** is a ROS 2 node that records selected topics into [ReductStore](https://www.reduct.store/), a high-performance storage and streaming solution. ReductStore is an ELT-based system for robotics and industrial IoT data acquisition. It ingests and streams time-series data of any size—images, sensor readings, logs, files, MCAP, ROS bags—and stores it with time indexing and labels for ultra-fast retrieval and management.
 
 This agent is fully configurable via YAML and designed to solve storage, bandwidth, and workflow limitations commonly found in field robotics. It streams data to ReductStore in near real-time with optional compression, splitting, dynamic labeling, and per-pipeline controls.
-
-
-- [Container Images](#container-images)
-- [ros2_reduct_agent](#ros2_reduct_agent)
 
 ## System Requirements
 
@@ -33,81 +30,90 @@ This agent is tested with:
 The agent is configured using a YAML file. Each pipeline is an independent logging unit (only one type of pipeline is supported at the moment where all topics are recorded continuously without filtering).
 
 ```yaml
-recorder:
-  storage: # local ReductStore instance
-    url: "http://localhost:8383"   
-    api_token: "access_token"
-    bucket: "ros-data"
-  pipelines:
-    telemetry:
-      entry: telemetry # entry name in ReductStore
-      output_format: mcap # only mcap is supported as of now
-      # NOTE: All topics are recorded continuously. Topic filtering will be supported in future versions.
-      split:
-        max_duration_s: 300
-        max_size_bytes: 250_000_000
+/**/*:
+  ros__parameters:
+    storage: # local ReductStore instance
+      url: "http://localhost:8383"
+      api_token: "access_token"
+      bucket: "ros_data"
+    pipelines:
+      telemetry:
+        filename_mode: "timestamp"
+        include_topics: 
+          - /recorder/input
+        split:
+          max_duration_s: 3600
+          max_size_bytes: 10000
 ```
+
+See the [Configuration](#configuration) section for details on available parameters.
 
 ## Installing
 
 Build and run in a ROS 2 workspace:
 
 ```bash
+# 1. Clone your repo and enter the workspace
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
 git clone https://github.com/reductstore/ros2-reduct-agent.git
 cd ..
+
+# 2. Install system dependencies
+rosdep install --from-paths src --ignore-src -r -y
+
+# 3. Build your package
 colcon build --packages-select ros2_reduct_agent
+
+# 4. Source the workspace and run your node
 source install/local_setup.bash
-ros2 run ros2_reduct_agent recorder_node --ros-args --params-file ./config.yaml
+ros2 run ros2_reduct_agent recorder --ros-args --params-file ./config.yaml
 ```
 
 ## Configuration
 
-The configuration file is a YAML file that defines the storage settings and pipelines. The `storage` section contains ReductStore connection details, including the URL, API token, and bucket name. The `pipelines` section defines the individual pipelines for recording data.
+The configuration file is a YAML file that defines the storage settings and pipelines. The `storage` section contains ReductStore connection details, and the `pipelines` section defines the individual pipelines for recording data.
 
-Each pipeline has the following parameters:
-* `entry`: The name of the entry in ReductStore where the data will be stored.
-* `output_format`: The format of the output data. Currently, only `mcap` is supported.
-* `split`: A dictionary that specifies how to split the data. It can be based on maximum duration or size. The `max_duration_s` key specifies the maximum duration in seconds for each split, while the `max_size_bytes` key specifies the maximum size in bytes for each split.
+### Storage Configuration
 
-### Container Images
+The `storage` section specifies the ReductStore instance to connect to:
 
-| Description | Image:Tag | Default Command |
-| --- | --- | -- |
-|  |  |  |
+ * **`url`**: The URL of the ReductStore instance (e.g., `http://localhost:8383`).
+ * **`api_token`**: The API token for authentication. This is required to access the ReductStore instance.
+ * **`bucket`**: The bucket name where the data will be stored.
 
-### Subscribed Topics
+ More information on how to setup ReductStore can be found in the [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started).
 
-| Topic | Type | Description |
-| --- | --- | --- |
-|  |  |  |
+### Pipeline Parameters
 
-### Published Topics
+Each pipeline supports the following parameters:
 
-| Topic | Type | Description |
-| --- | --- | --- |
-|  |  |  |
+* **`split`**:
 
-### Services
+  * **`max_duration_s`**: Maximum duration (in seconds) for each data segment. Must be between `1` and `3600`.
+  * **`max_size_bytes`** *(optional)*: Maximum size (in bytes) for each segment. Must be between `1KB` and `1GB`.
 
-| Service | Type | Description |
-| --- | --- | --- |
-|  |  |  |
+* **`chunk_size_bytes`**: Size of each MCAP chunk in bytes. Defaults to `1MB`. Must be between `1KB` and `10MB`.
 
-### Actions
+* **`compression`**: Compression algorithm to use. One of:
 
-| Action | Type | Description |
-| --- | --- | --- |
-|  |  |  |
+  * `"none"`
+  * `"lz4"`
+  * `"zstd"` *(default)*
 
-### Parameters
+* **`enable_crcs`**: Whether to enable CRC checks. Defaults to `true`.
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-|  |  |  |
+* **`spool_max_size_bytes`**: Maximum in-memory spool size before flushing. Defaults to `10MB`. Must be between `1KB` and `1GB`.
+
+* **`include_topics`**: A list of ROS topics to record. Each topic must start with a `/`.
+
+* **`filename_mode`**: Determines how filenames are generated. One of:
+
+  * `"timestamp"` *(default)* — Use first topic timestamp for filenames.
+  * `"incremental"` — Use incrementing numbers (0, 1, 2, ...) for filenames.
 
 ## Links
 
 * ReductStore Docs: [https://www.reduct.store/docs/getting-started](https://www.reduct.store/docs/getting-started)
 * Ubuntu Core Robotics Telemetry: [https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry](https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry)
+

@@ -1,0 +1,17 @@
+## IDE
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging
+install/
+build/
+
+# Log directory
+log/
+
+# Pytest
+.coverage
