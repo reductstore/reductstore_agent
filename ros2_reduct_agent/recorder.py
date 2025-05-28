@@ -109,7 +109,7 @@ class Recorder(Node):
 
             timer = self.create_timer(
                 float(duration),
-                self.make_timer_callback(pipeline_name),
+                self.make_timer_callback(pipeline_name, state),
             )
             state.timer = timer
 
@@ -292,11 +292,10 @@ class Recorder(Node):
     #
     # Pipeline Management and Upload
     #
-    def make_timer_callback(self, pipeline_name: str):
+    def make_timer_callback(self, pipeline_name: str, state: PipelineState):
         """Return a callback that uploads the current pipeline state."""
 
         def _timer_callback():
-            state = self.pipeline_states[pipeline_name]
             self.upload_pipeline(pipeline_name, state)
 
         return _timer_callback
