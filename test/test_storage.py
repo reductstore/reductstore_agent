@@ -1,10 +1,11 @@
-import asyncio
 import io
 
 import rclpy
 from mcap.reader import make_reader
 from mcap_ros2.decoder import DecoderFactory
 from std_msgs.msg import String
+
+from ros2_reduct_agent.utils import get_or_create_event_loop
 
 
 def publish_and_spin(publisher_node, publisher, recorder, n_msgs=3, n_cycles=2):
@@ -33,7 +34,7 @@ def test_timer_trigger_uploads_to_bucket(
             output.append(await record.read_all())
         return output
 
-    data_blobs = asyncio.get_event_loop().run_until_complete(fetch_all())
+    data_blobs = get_or_create_event_loop().run_until_complete(fetch_all())
 
     assert len(data_blobs) == 2, f"got {len(data_blobs)} files, expected 2"
 
@@ -50,7 +51,7 @@ def test_uploaded_blob_has_expected_message_count(
             return await record.read_all()
         return None
 
-    blob = asyncio.get_event_loop().run_until_complete(fetch_one())
+    blob = get_or_create_event_loop().run_until_complete(fetch_one())
     assert blob is not None, "no upload found"
 
     reader = make_reader(io.BytesIO(blob), decoder_factories=[DecoderFactory()])
@@ -70,7 +71,7 @@ def test_uploaded_messages_have_correct_schema_and_content(
             return await record.read_all()
         return None
 
-    blob = asyncio.get_event_loop().run_until_complete(fetch_one())
+    blob = get_or_create_event_loop().run_until_complete(fetch_one())
     reader = make_reader(io.BytesIO(blob), decoder_factories=[DecoderFactory()])
 
     for idx, (schema, channel, msg_meta, ros2_msg) in enumerate(
@@ -120,7 +121,7 @@ def test_parallel_pipelines_upload_both_topics(
             output["timer_rosout"].append(await rec.read_all())
         return output
 
-    data = asyncio.get_event_loop().run_until_complete(fetch_both())
+    data = get_or_create_event_loop().run_until_complete(fetch_both())
     assert data["timer_test_topic"], "no /test/topic uploads"
     assert data["timer_rosout"], "no /rosout uploads"
 

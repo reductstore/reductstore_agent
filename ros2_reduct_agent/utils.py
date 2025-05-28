@@ -1,4 +1,16 @@
+import asyncio
 import re
+from asyncio import AbstractEventLoop
+
+
+def get_or_create_event_loop() -> AbstractEventLoop:
+    """Get the current event loop or create a new one if none exists."""
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
 
 
 def parse_bytes_with_si_units(value: str | int | float) -> int:

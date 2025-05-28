@@ -1,4 +1,3 @@
-import asyncio
 import importlib
 from collections import defaultdict
 from tempfile import SpooledTemporaryFile
@@ -14,6 +13,7 @@ from reduct import Client
 from rosbag2_py import LocalMessageDefinitionSource
 
 from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
+from .utils import get_or_create_event_loop
 
 
 class Recorder(Node):
@@ -38,7 +38,7 @@ class Recorder(Node):
             self.storage_config.url, api_token=self.storage_config.api_token
         )
         self.bucket = None
-        self.loop = asyncio.get_event_loop()
+        self.loop = get_or_create_event_loop()
         self.loop.run_until_complete(self.init_reduct_bucket())
 
         # Pipelines

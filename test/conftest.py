@@ -1,4 +1,3 @@
-import asyncio
 from typing import Generator
 
 import pytest
@@ -10,12 +9,13 @@ from reduct import Client
 from std_msgs.msg import String
 
 from ros2_reduct_agent.recorder import Recorder
+from ros2_reduct_agent.utils import get_or_create_event_loop
 
 
 @pytest.fixture
 def reduct_client():
     """Provides a clean ReductStore client by recreating the test bucket before and after the session."""
-    loop = asyncio.get_event_loop()
+    loop = get_or_create_event_loop()
     client = Client("http://localhost:8383", api_token="test_token")
 
     async def cleanup():
