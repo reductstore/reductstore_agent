@@ -79,17 +79,22 @@ class PipelineConfig(BaseModel):
 
     def format_for_log(self) -> str:
         config_items = self.model_dump(by_alias=True)
+        max_key_len = max(len(k) for k in config_items)
+        indent = " " * 8
         lines = []
-        for k, v in config_items.items():
-            if isinstance(v, list):
-                val_str = "[" + ", ".join(repr(i) for i in v) + "]"
-            elif isinstance(v, FilenameMode):
-                val_str = v.value
-            elif isinstance(v, str):
-                val_str = f'"{v}"'
+
+        for key in sorted(config_items):
+            value = config_items[key]
+            if isinstance(value, list):
+                value_str = "[" + ", ".join(repr(i) for i in value) + "]"
+            elif isinstance(value, FilenameMode):
+                value_str = value.value
+            elif isinstance(value, str):
+                value_str = f'"{value}"'
             else:
-                val_str = str(v)
-            lines.append(f"  - {k}: {val_str}")
+                value_str = str(value)
+
+            lines.append(f"{indent}{key.ljust(max_key_len)} = {value_str}")
         return "\n".join(lines)
 
 
