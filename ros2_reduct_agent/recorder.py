@@ -1,7 +1,7 @@
 import importlib
 from collections import defaultdict
 from tempfile import SpooledTemporaryFile
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import rclpy
 from mcap_ros2.writer import Writer as McapWriter
@@ -333,29 +333,51 @@ class Recorder(Node):
             else (state.first_timestamp or self.get_clock().now().nanoseconds) // 1_000
         )
 
-        # Get the data from the buffer
+        # Finish the MCAP writer
         state.writer.finish()
-        state.buffer.seek(0)
-        data = state.buffer.read()
 
         # Upload and reset the state
-        self.upload_mcap(pipeline_name, data, file_index)
+        self.upload_mcap(pipeline_name, state.buffer, file_index)
         self.reset_pipeline_state(pipeline_name, state)
         state.increment += 1
 
-    def upload_mcap(self, pipeline_name: str, data: bytes, file_index: int):
+    def upload_mcap(
+        self, pipeline_name: str, buffer: SpooledTemporaryFile[bytes], file_index: int
+    ):
         """Upload MCAP to ReductStore."""
         self.logger.info(f"[{pipeline_name}] MCAP ready. Uploading to ReductStore...")
 
-        async def _upload():
-            await self.bucket.write(
-                pipeline_name, data, file_index, content_type="application/mcap"
-            )
-
         try:
-            self.loop.run_until_complete(_upload())
+            self.loop.run_until_complete(
+                self.upload_to_reductstore(pipeline_name, buffer, file_index)
+            )
         except Exception as exc:
             self.logger.error(f"[{pipeline_name}] Failed to upload MCAP: {exc}")
+
+    async def upload_to_reductstore(
+        self, pipeline_name: str, buffer: SpooledTemporaryFile[bytes], file_index: int
+    ):
+        """Asynchronously upload the MCAP file to ReductStore."""
+        content_length = buffer.tell()
+        buffer.seek(0)
+
+        await self.bucket.write(
+            pipeline_name,
+            self.read_in_chunks(buffer),
+            file_index,
+            content_length,
+            content_type="application/mcap",
+        )
+
+    async def read_in_chunks(
+        self, buffer: SpooledTemporaryFile[bytes], chunk_size: int = 100_000
+    ) -> AsyncGenerator[bytes, None]:
+        """Yield chunks from the buffer."""
+        while True:
+            chunk = buffer.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
 
 
 def main():
