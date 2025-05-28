@@ -18,7 +18,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install linting tools
+      - name: Install linting and formatting tools
+        # TODO: use pylint for linting
         run: |
           python -m pip install --upgrade pip
           pip install black isort
