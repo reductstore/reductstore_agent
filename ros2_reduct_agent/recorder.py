@@ -5,6 +5,7 @@ from typing import Any, AsyncGenerator
 
 import rclpy
 from mcap_ros2.writer import Writer as McapWriter
+from rclpy.impl.logging_severity import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.subscription import Subscription
@@ -46,6 +47,18 @@ class Recorder(Node):
         self.subscribers: list[Subscription] = []
         self.init_mcap_writers()
         self.setup_topic_subscriptions()
+
+    def log_info(self, msg_fn):
+        if self.logger.is_enabled_for(LoggingSeverity.INFO):
+            self.logger.info(msg_fn())
+
+    def log_debug(self, msg_fn):
+        if self.logger.is_enabled_for(LoggingSeverity.DEBUG):
+            self.logger.debug(msg_fn())
+
+    def log_warn(self, msg_fn):
+        if self.logger.is_enabled_for(LoggingSeverity.WARN):
+            self.logger.warn(msg_fn())
 
     def load_storage_config(self) -> StorageConfig:
         """Parse and validate storage parameters."""
@@ -113,9 +126,8 @@ class Recorder(Node):
             )
             state.timer = timer
 
-            self.logger.info(
-                f"[{pipeline_name}] MCAP writer initialized with config:\n"
-                f"{cfg.format_for_log()}"
+            self.log_info(
+                lambda: f"[{pipeline_name}] MCAP writer initialized with config:\n{cfg.format_for_log()}"
             )
 
     def reset_pipeline_state(
@@ -142,8 +154,8 @@ class Recorder(Node):
         state.schemas_by_topic.clear()
         self.setup_topic_subscriptions()
 
-        self.logger.debug(
-            f"[{pipeline_name}] MCAP writer reset - ready for next segment"
+        self.log_debug(
+            lambda: f"[{pipeline_name}] MCAP writer reset - ready for next segment"
         )
 
     def create_mcap_writer(
@@ -173,21 +185,21 @@ class Recorder(Node):
         for topic in topics_to_subscribe:
             msg_types = topic_types.get(topic)
             if not msg_types:
-                self.logger.warn(f"Skipping '{topic}': No message type found.")
+                self.log_warn(lambda: f"Skipping '{topic}': No message type found.")
                 continue
 
             msg_type_str = msg_types[0]
 
             if "/msg/" not in msg_type_str:
-                self.logger.warn(
-                    f"Skipping '{topic}': Invalid message type format '{msg_type_str}'."
+                self.log_warn(
+                    lambda: f"Skipping '{topic}': Invalid message type format '{msg_type_str}'."
                 )
                 continue
 
             self.register_message_schema(topic, msg_type_str)
 
             if any(sub.topic_name == topic for sub in self.subscribers):
-                self.logger.debug(f"Already subscribed to '{topic}'")
+                self.log_debug(lambda: f"Already subscribed to '{topic}'")
                 continue
 
             pkg, msg = msg_type_str.split("/msg/")
@@ -195,8 +207,8 @@ class Recorder(Node):
                 module = importlib.import_module(f"{pkg}.msg")
                 msg_type = getattr(module, msg)
             except (ModuleNotFoundError, AttributeError) as e:
-                self.logger.warn(
-                    f"Skipping '{topic}': Cannot import '{msg_type_str}' ({e})"
+                self.log_warn(
+                    lambda: f"Skipping '{topic}': Cannot import '{msg_type_str}' ({e})"
                 )
                 continue
 
@@ -207,7 +219,7 @@ class Recorder(Node):
                 QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
-            self.logger.info(f"Subscribed to '{topic}' [{msg_type_str}]")
+            self.log_info(lambda: f"Subscribed to '{topic}' [{msg_type_str}]")
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register schema once per message type and associate it with the topic."""
@@ -225,8 +237,8 @@ class Recorder(Node):
                     msgdef_text=msg_def.encoded_message_definition,
                 )
                 state.schema_by_type[msg_type_str] = schema
-                self.logger.debug(
-                    f"[{topic_name}] Registered schema for message type '{msg_type_str}'"
+                self.log_debug(
+                    lambda: f"[{topic_name}] Registered schema for message type '{msg_type_str}'"
                 )
 
             state.schemas_by_topic[topic_name] = schema
@@ -248,8 +260,8 @@ class Recorder(Node):
             return Time.from_msg(message.stamp).nanoseconds
 
         if topic_name not in self.warned_topics:
-            self.logger.warn(
-                f"Message on topic '{topic_name}' has no timestamp. Using current time."
+            self.log_warn(
+                lambda: f"Message on topic '{topic_name}' has no timestamp. Using current time."
             )
             self.warned_topics.add(topic_name)
 
@@ -267,14 +279,14 @@ class Recorder(Node):
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
 
-            self.logger.debug(
-                f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
+            self.log_debug(
+                lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
 
             schema = state.schemas_by_topic.get(topic_name)
             if not schema:
-                self.logger.warn(
-                    f"[{pipeline_name}] No schema registered for topic '{topic_name}'"
+                self.log_warn(
+                    lambda: f"[{pipeline_name}] No schema registered for topic '{topic_name}'"
                 )
                 continue
 
@@ -303,20 +315,20 @@ class Recorder(Node):
     def upload_pipeline(self, pipeline_name: str, state: PipelineState):
         """Finish current MCAP, upload if it contains data, and reset writer and state."""
         if not all([state.writer, state.buffer, state.timer]):
-            self.logger.warn(
-                f"[{pipeline_name}] Incomplete state (writer/buffer/timer) — skipping upload."
+            self.log_warn(
+                lambda: f"[{pipeline_name}] Incomplete state (writer/buffer/timer) — skipping upload."
             )
             return
 
         if state.is_uploading:
-            self.logger.warn(
-                f"[{pipeline_name}] Upload already in progress — skipping upload."
+            self.log_warn(
+                lambda: f"[{pipeline_name}] Upload already in progress — skipping upload."
             )
             return
 
         if state.current_size == 0:
-            self.logger.info(
-                f"[{pipeline_name}] No new data since last upload — skipping upload."
+            self.log_info(
+                lambda: f"[{pipeline_name}] No new data since last upload — skipping upload."
             )
             state.timer.reset()
             return
@@ -344,7 +356,9 @@ class Recorder(Node):
         self, pipeline_name: str, buffer: SpooledTemporaryFile[bytes], file_index: int
     ):
         """Upload MCAP to ReductStore."""
-        self.logger.info(f"[{pipeline_name}] MCAP ready. Uploading to ReductStore...")
+        self.log_info(
+            lambda: f"[{pipeline_name}] MCAP ready. Uploading to ReductStore..."
+        )
 
         try:
             self.loop.run_until_complete(
