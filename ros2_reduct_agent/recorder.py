@@ -357,7 +357,7 @@ class Recorder(Node):
     async def upload_to_reductstore(
         self, pipeline_name: str, buffer: SpooledTemporaryFile[bytes], file_index: int
     ):
-        """Asynchronously upload the MCAP file to ReductStore."""
+        """Upload the MCAP file to ReductStore in chunks."""
         content_length = buffer.tell()
         buffer.seek(0)
 
