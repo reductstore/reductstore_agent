@@ -3,12 +3,13 @@ import io
 import rclpy
 from mcap.reader import make_reader
 from mcap_ros2.decoder import DecoderFactory
+from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 from ros2_reduct_agent.utils import get_or_create_event_loop
 
 
-def publish_and_spin(publisher_node, publisher, recorder, n_msgs=3, n_cycles=2):
+def publish_string_and_spin(publisher_node, publisher, recorder, n_msgs=3, n_cycles=2):
     """Publish messages and spin the nodes to allow the recorder to process them."""
     for _ in range(n_cycles):
         for i in range(n_msgs):
@@ -22,10 +23,10 @@ def publish_and_spin(publisher_node, publisher, recorder, n_msgs=3, n_cycles=2):
 
 
 def test_timer_trigger_uploads_to_bucket(
-    reduct_client, publisher_node, publisher, basic_recorder
+    reduct_client, publisher_node, string_publisher, basic_recorder
 ):
     """Test that the timer triggers and uploads data to the bucket."""
-    publish_and_spin(publisher_node, publisher, basic_recorder)
+    publish_string_and_spin(publisher_node, string_publisher, basic_recorder)
 
     async def fetch_all():
         bucket = await reduct_client.get_bucket("test_bucket")
@@ -40,10 +41,10 @@ def test_timer_trigger_uploads_to_bucket(
 
 
 def test_uploaded_blob_has_expected_message_count(
-    reduct_client, publisher_node, publisher, basic_recorder
+    reduct_client, publisher_node, string_publisher, basic_recorder
 ):
     """Test that the uploaded blob has the expected number of messages."""
-    publish_and_spin(publisher_node, publisher, basic_recorder)
+    publish_string_and_spin(publisher_node, string_publisher, basic_recorder)
 
     async def fetch_one():
         bucket = await reduct_client.get_bucket("test_bucket")
@@ -60,10 +61,10 @@ def test_uploaded_blob_has_expected_message_count(
 
 
 def test_uploaded_messages_have_correct_schema_and_content(
-    reduct_client, publisher_node, publisher, basic_recorder
+    reduct_client, publisher_node, string_publisher, basic_recorder
 ):
     """Test that the uploaded messages have the correct schema and content."""
-    publish_and_spin(publisher_node, publisher, basic_recorder)
+    publish_string_and_spin(publisher_node, string_publisher, basic_recorder)
 
     async def fetch_one():
         bucket = await reduct_client.get_bucket("test_bucket")
@@ -97,13 +98,13 @@ def test_uploaded_messages_have_correct_schema_and_content(
 
 
 def test_parallel_pipelines_upload_both_topics(
-    reduct_client, publisher_node, publisher, parallel_recorder
+    reduct_client, publisher_node, string_publisher, parallel_recorder
 ):
     """Test that parallel pipelines upload both /test/topic and /rosout."""
     msg = String()
     msg.data = "parallel_test"
     for _ in range(5):
-        publisher.publish(msg)
+        string_publisher.publish(msg)
         rclpy.spin_once(publisher_node, timeout_sec=0.2)
         # Spin recorder twice to allow both pipelines to process
         rclpy.spin_once(parallel_recorder, timeout_sec=0.2)
@@ -142,3 +143,70 @@ def test_parallel_pipelines_upload_both_topics(
     for schema, channel, _, _ in reader2.iter_decoded_messages():
         assert schema.name == "rcl_interfaces/msg/Log"
         assert channel.topic == "/rosout"
+
+
+def publish_image_and_spin(publisher_node, publisher, recorder, n_msgs=3, n_cycles=2):
+    """Publish Image messages and spin the nodes to allow the recorder to process them."""
+    sent_messages = []
+
+    for _ in range(n_cycles):
+        for i in range(n_msgs):
+            msg = Image()
+            msg.header.stamp = publisher_node.get_clock().now().to_msg()
+            msg.height = 2
+            msg.width = 2
+            msg.encoding = "rgb8"
+            msg.is_bigendian = 0
+            msg.step = 6
+            # 2x2 RGB image (2*2*3=12 bytes), each pixel = (i % 256)
+            pixel_value = i % 256
+            msg.data = bytes([pixel_value] * 12)
+            sent_messages.append(bytes(msg.data))
+            publisher.publish(msg)
+            rclpy.spin_once(publisher_node, timeout_sec=0.2)
+            rclpy.spin_once(recorder, timeout_sec=0.2)
+
+        # Spin recorder long enough for timer to trigger upload
+        rclpy.spin_once(recorder, timeout_sec=2.0)
+
+    return sent_messages
+
+
+def test_record_sensor_msgs_image(
+    reduct_client, publisher_node, image_publisher, basic_recorder
+):
+    """Test that sensor_msgs/msg/Image messages are recorded, uploaded, and preserved."""
+    expected_images = publish_image_and_spin(
+        publisher_node, image_publisher, basic_recorder
+    )
+
+    async def fetch_all():
+        bucket = await reduct_client.get_bucket("test_bucket")
+        blobs = []
+        async for record in bucket.query("timer_test_topic"):
+            blobs.append(await record.read_all())
+        return blobs
+
+    blobs = get_or_create_event_loop().run_until_complete(fetch_all())
+    assert blobs, "No upload found for Image topic"
+
+    decoded_images = []
+
+    for blob in blobs:
+        reader = make_reader(io.BytesIO(blob), decoder_factories=[DecoderFactory()])
+        for schema, channel, msg_meta, ros2_msg in reader.iter_decoded_messages():
+            assert schema.name == "sensor_msgs/msg/Image"
+            assert channel.topic == "/test/topic"
+            assert channel.message_encoding == "cdr"
+            assert ros2_msg.height == 2
+            assert ros2_msg.width == 2
+            assert ros2_msg.encoding == "rgb8"
+            assert len(ros2_msg.data) == 12
+            decoded_images.append(ros2_msg.data)
+
+    assert len(decoded_images) == len(
+        expected_images
+    ), f"Expected {len(expected_images)} images, but got {len(decoded_images)}"
+
+    for i, (expected, received) in enumerate(zip(expected_images, decoded_images)):
+        assert received == expected, f"Image data mismatch at index {i}"
