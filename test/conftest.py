@@ -6,6 +6,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.publisher import Publisher
 from reduct import Client
+from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 from ros2_reduct_agent.recorder import Recorder
@@ -47,8 +48,15 @@ def publisher_node() -> Generator[Node, None, None]:
 
 
 @pytest.fixture
-def publisher(publisher_node: Node) -> Publisher:
+def string_publisher(publisher_node: Node) -> Publisher:
     pub = publisher_node.create_publisher(String, "/test/topic", 10)
+    return pub
+
+
+@pytest.fixture
+def image_publisher(publisher_node: Node) -> Publisher:
+    """Publisher for sensor_msgs/Image messages."""
+    pub = publisher_node.create_publisher(Image, "/test/topic", 10)
     return pub
 
 
