@@ -1,10 +1,10 @@
-# ros2_reduct_agent
+# reductstore_agent
 
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/reductstore/ros2_reduct_agent/ci.yml?branch=main)](https://github.com/reductstore/ros2_reduct_agent/actions)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/reductstore/reductstore_agent/ci.yml?branch=main)](https://github.com/reductstore/reductstore_agent/actions)
 [![Community](https://img.shields.io/discourse/status?server=https%3A%2F%2Fcommunity.reduct.store
 )](https://community.reduct.store/signup)
 
-**ros2-reduct-agent** is a ROS 2 node that records selected topics into [ReductStore](https://www.reduct.store/), a high-performance storage and streaming solution. ReductStore is an ELT-based system for robotics and industrial IoT data acquisition. It ingests and streams time-series data of any size—images, sensor readings, logs, files, MCAP, ROS bags—and stores it with time indexing and labels for ultra-fast retrieval and management.
+**reductstore_agent** is a ROS 2 node that records selected topics into [ReductStore](https://www.reduct.store/), a high-performance storage and streaming solution. ReductStore is an ELT-based system for robotics and industrial IoT data acquisition. It ingests and streams time-series data of any size—images, sensor readings, logs, files, MCAP, ROS bags—and stores it with time indexing and labels for ultra-fast retrieval and management.
 
 This agent is fully configurable via YAML and designed to solve storage, bandwidth, and workflow limitations commonly found in field robotics. It streams data to ReductStore in near real-time with optional compression, splitting, dynamic labeling, and per-pipeline controls.
 
@@ -56,18 +56,18 @@ Build and run in a ROS 2 workspace:
 # 1. Clone your repo and enter the workspace
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
-git clone https://github.com/reductstore/ros2-reduct-agent.git
+git clone https://github.com/reductstore/reductstore_agent.git
 cd ..
 
 # 2. Install system dependencies
 rosdep install --from-paths src --ignore-src -r -y
 
 # 3. Build your package
-colcon build --packages-select ros2_reduct_agent
+colcon build --packages-select reductstore_agent
 
 # 4. Source the workspace and run your node
 source install/local_setup.bash
-ros2 run ros2_reduct_agent recorder --ros-args --params-file ./config.yaml
+ros2 run reductstore_agent recorder --ros-args --params-file ./config.yaml
 ```
 
 ## Configuration

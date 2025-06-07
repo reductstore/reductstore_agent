@@ -5,7 +5,7 @@ from glob import glob
 
 from setuptools import setup
 
-package_name = "ros2_reduct_agent"
+package_name = "reductstore_agent"
 
 setup(
     name=package_name,
@@ -34,6 +34,6 @@ setup(
     license="MIT",
     tests_require=["pytest"],
     entry_points={
-        "console_scripts": ["recorder = ros2_reduct_agent.recorder:main"],
+        "console_scripts": ["recorder = reductstore_agent.recorder:main"],
     },
 )

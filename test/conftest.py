@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Fixtures for testing the ros2_reduct_agent package."""
+"""Fixtures for testing the reductstore_agent package."""
 
 from typing import Generator
 
@@ -30,8 +30,8 @@ from rclpy.publisher import Publisher
 from reduct import Client
 from std_msgs.msg import String
 
-from ros2_reduct_agent.recorder import Recorder
-from ros2_reduct_agent.utils import get_or_create_event_loop
+from reductstore_agent.recorder import Recorder
+from reductstore_agent.utils import get_or_create_event_loop
 
 
 @pytest.fixture

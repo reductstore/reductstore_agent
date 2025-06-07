@@ -25,7 +25,7 @@ import re
 import pytest
 from rclpy.parameter import Parameter
 
-from ros2_reduct_agent.recorder import Recorder
+from reductstore_agent.recorder import Recorder
 
 
 def storage_params():

@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Launch file for the ros2_reduct_agent node."""
+"""Launch file for the reductstore_agent node."""
 
 
 import os
@@ -34,14 +34,14 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    """Generate the launch description for the ros2_reduct_agent node."""
+    """Generate the launch description for the reductstore_agent node."""
     remappable_topics = [
         DeclareLaunchArgument("input_topic", default_value="~/input"),
     ]
 
     args = [
         DeclareLaunchArgument(
-            "name", default_value="ros2_reduct_agent", description="node name"
+            "name", default_value="reductstore_agent", description="node name"
         ),
         DeclareLaunchArgument(
             "namespace", default_value="", description="node namespace"
@@ -49,7 +49,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "params",
             default_value=os.path.join(
-                get_package_share_directory("ros2_reduct_agent"),
+                get_package_share_directory("reductstore_agent"),
                 "config",
                 "params.yml",
             ),
@@ -68,7 +68,7 @@ def generate_launch_description():
 
     nodes = [
         Node(
-            package="ros2_reduct_agent",
+            package="reductstore_agent",
             executable="recorder",
             namespace=LaunchConfiguration("namespace"),
             name=LaunchConfiguration("name"),

@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Configuration models for the ros2_reduct_agent package."""
+"""Configuration models for the reductstore_agent package."""
 
 from enum import Enum
 from tempfile import SpooledTemporaryFile
