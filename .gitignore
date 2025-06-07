@@ -9,6 +9,7 @@ __pycache__/
 # Packaging
 install/
 build/
+Pipfile
 
 # Log directory
 log/
