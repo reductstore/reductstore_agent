@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Test Recorder node parameter validation and configuration."""
 
 import re
 
@@ -28,6 +29,7 @@ from ros2_reduct_agent.recorder import Recorder
 
 
 def storage_params():
+    """Return a dictionary of valid storage parameters."""
     return {
         "url": "http://localhost:8383",
         "api_token": "test_token",
@@ -36,6 +38,7 @@ def storage_params():
 
 
 def pipeline_params():
+    """Return a list of valid pipeline parameters."""
     return [
         Parameter(
             "pipelines.test.include_topics",
@@ -95,7 +98,7 @@ def test_recorder_valid_pipeline_params():
 
 @pytest.mark.parametrize("missing_key", ["url", "api_token", "bucket"])
 def test_recorder_missing_storage_param(missing_key):
-    """Test that the Recorder node raises an error if a required parameter is missing."""
+    """Test that the Recorder node raises an error if missing storage parameter."""
     params = storage_params()
     params.pop(missing_key)
     with pytest.raises(
@@ -144,7 +147,7 @@ def test_recorder_empty_storage_value(empty_key):
     ],
 )
 def test_recorder_invalid_pipeline_param(param_name, invalid_value, err_msg):
-    """Test that the Recorder node raises an error if a pipeline parameter is invalid."""
+    """Raises an error if a pipeline parameter is invalid."""
     storage_params_dict = storage_params()
     pipeline_params_list = []
     for param in pipeline_params():
@@ -162,7 +165,7 @@ def test_recorder_invalid_pipeline_param(param_name, invalid_value, err_msg):
 
 
 def test_recorder_invalid_pipeline_param_name():
-    """Test that the Recorder node raises an error for pipeline parameters with invalid names (less than 3 parts)."""
+    """Raises an error for pipeline parameters with invalid names."""
     storage_dict = storage_params()
     invalid_pipeline_param = Parameter(
         "pipelines.invalid", Parameter.Type.STRING, "something"
@@ -171,7 +174,8 @@ def test_recorder_invalid_pipeline_param_name():
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "Invalid pipeline parameter name: 'pipelines.invalid'. Expected 'pipelines.<pipeline_name>.<subkey>'"
+            "Invalid pipeline parameter name: 'pipelines.invalid'. "
+            "Expected 'pipelines.<pipeline_name>.<subkey>'"
         ),
     ):
         Recorder(
@@ -248,7 +252,7 @@ def test_pipeline_invalid_filename_mode():
 
 
 def test_recorder_valid_mcap_pipeline_params():
-    """Test that the Recorder node accepts valid chunking and compression pipeline params."""
+    """Test that the Recorder node accepts valid chunking and compression params."""
     extra_params = [
         Parameter("pipelines.test.chunk_size_bytes", Parameter.Type.INTEGER, 1_000_000),
         Parameter("pipelines.test.compression", Parameter.Type.STRING, "zstd"),
@@ -303,7 +307,7 @@ def test_recorder_invalid_compression():
 
 
 def test_recorder_invalid_enable_crcs():
-    """Test that an invalid enable_crcs value raises a type/value error at parameter construction."""
+    """Test that an invalid enable_crcs value raises a type/value error."""
     with pytest.raises(
         ValueError, match="Type 'Type.BOOL' and value 'not_a_bool' do not agree"
     ):

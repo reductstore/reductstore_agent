@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Test PEP257 docstring compliance."""
+
+
 import pytest
 from ament_pep257.main import main
 
@@ -19,5 +22,6 @@ from ament_pep257.main import main
 @pytest.mark.linter
 @pytest.mark.pep257
 def test_pep257():
+    """Test that the codebase passes PEP257 docstring checks."""
     rc = main(argv=[".", "test"])
     assert rc == 0, "Found code style errors / warnings"

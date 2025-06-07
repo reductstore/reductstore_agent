@@ -18,8 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Test topic subscription behavior of the Recorder node."""
 
-import pytest
 from rclpy.parameter import Parameter
 from std_msgs.msg import String
 
@@ -76,7 +76,7 @@ def test_recorder_not_subscribed_to_other_topic(publisher_node):
 
 
 def test_recorder_subscribed_to_multiple_topics(publisher_node):
-    """Recorder should subscribe only to the listed topics and ignore others."""
+    """Recorder should subscribe only to the listed topics."""
     publisher_node.create_publisher(String, "/test/topic1", 10)
     publisher_node.create_publisher(String, "/test/topic2", 10)
 

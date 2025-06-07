@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Fixtures for testing the ros2_reduct_agent package."""
 
 from typing import Generator
 
@@ -35,7 +36,7 @@ from ros2_reduct_agent.utils import get_or_create_event_loop
 
 @pytest.fixture
 def reduct_client():
-    """Provide a clean ReductStore client by recreating the test bucket before and after the session."""
+    """Recreating the test bucket before and after the session."""
     loop = get_or_create_event_loop()
     client = Client("http://localhost:8383", api_token="test_token")
 
@@ -62,6 +63,7 @@ def ros_context():
 
 @pytest.fixture
 def publisher_node() -> Generator[Node, None, None]:
+    """Create a publisher node for testing."""
     node = Node("test_publisher")
     yield node
     node.destroy_node()
@@ -69,6 +71,7 @@ def publisher_node() -> Generator[Node, None, None]:
 
 @pytest.fixture
 def publisher(publisher_node: Node) -> Publisher:
+    """Create a publisher for the test topic."""
     pub = publisher_node.create_publisher(String, "/test/topic", 10)
     return pub
 

@@ -1,3 +1,5 @@
+"""ROS2 Reduct Agent Setup Script."""
+
 import os
 from glob import glob
 

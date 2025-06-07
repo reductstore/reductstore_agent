@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Launch file for the ros2_reduct_agent node."""
+
 
 import os
 
@@ -32,7 +34,7 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-
+    """Generate the launch description for the ros2_reduct_agent node."""
     remappable_topics = [
         DeclareLaunchArgument("input_topic", default_value="~/input"),
     ]
@@ -47,7 +49,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "params",
             default_value=os.path.join(
-                get_package_share_directory("ros2_reduct_agent"), "config", "params.yml"
+                get_package_share_directory("ros2_reduct_agent"),
+                "config",
+                "params.yml",
             ),
             description="path to parameter file",
         ),
@@ -69,7 +73,11 @@ def generate_launch_description():
             namespace=LaunchConfiguration("namespace"),
             name=LaunchConfiguration("name"),
             parameters=[LaunchConfiguration("params")],
-            arguments=["--ros-args", "--log-level", LaunchConfiguration("log_level")],
+            arguments=[
+                "--ros-args",
+                "--log-level",
+                LaunchConfiguration("log_level"),
+            ],
             remappings=[
                 (la.default_value[0].text, LaunchConfiguration(la.name))
                 for la in remappable_topics

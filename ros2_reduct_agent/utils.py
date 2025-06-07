@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Utility functions for the ros2_reduct_agent package."""
 
 import asyncio
 import re
@@ -66,7 +67,8 @@ def parse_bytes_with_si_units(value: str | int | float) -> int:
 
     if unit not in si_multipliers:
         raise ValueError(
-            f"Unsupported unit: '{unit}'. Supported units: {list(si_multipliers.keys())}"
+            f"Unsupported unit: '{unit}'. "
+            f"Supported units: {list(si_multipliers.keys())}"
         )
 
     result = int(number * si_multipliers[unit])

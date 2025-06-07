@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Test copyright compliance."""
+
 import pytest
 from ament_copyright.main import main
 
@@ -19,5 +21,6 @@ from ament_copyright.main import main
 @pytest.mark.copyright
 @pytest.mark.linter
 def test_copyright():
+    """Test that the codebase passes copyright checks."""
     rc = main(argv=[".", "test"])
     assert rc == 0, "Found errors"

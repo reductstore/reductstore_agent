@@ -18,11 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Test Recorder node state management with large messages and timer triggers."""
 
 import pytest
 import rclpy
 from rclpy.node import Node
-from rclpy.parameter import Parameter
 from std_msgs.msg import String
 
 from ros2_reduct_agent.recorder import Recorder
@@ -35,6 +35,7 @@ def generate_string(size_kb: int) -> str:
 
 @pytest.fixture
 def publisher_node():
+    """Create a publisher node for testing."""
     node = Node("test_publisher")
     yield node
     node.destroy_node()
@@ -42,6 +43,7 @@ def publisher_node():
 
 @pytest.fixture
 def publisher(publisher_node: Node):
+    """Create a publisher for the test topic."""
     pub = publisher_node.create_publisher(String, "/test/topic", 10)
     return pub
 
@@ -59,7 +61,7 @@ def test_recorder_state_size(publisher_node, publisher, low_chunk_recorder, size
         rclpy.spin_once(low_chunk_recorder, timeout_sec=0.1)
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
 
-    # 5 messages of size_kb KB each plus 203 bytes for MCAP overhead (Schema, Channel, etc.)
+    # 5 messages of size_kb KB each plus 203 bytes for MCAP overhead
     assert low_chunk_recorder.pipeline_states["timer_test_topic"].current_size == 5 * (
         size_kb * 1024 + 203
     ), "Recorder did not receive the expected size of data"

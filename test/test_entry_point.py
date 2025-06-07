@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Test entry point of the ros2_reduct_agent package."""
 
 from ros2_reduct_agent.recorder import main
 

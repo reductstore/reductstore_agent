@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""Configuration models for the ros2_reduct_agent package."""
 
 from enum import Enum
 from tempfile import SpooledTemporaryFile
@@ -31,6 +32,8 @@ from .utils import parse_bytes_with_si_units
 
 
 class StorageConfig(BaseModel):
+    """Configuration for ReductStore storage connection."""
+
     url: str
     bucket: str
     api_token: str = ""
@@ -38,6 +41,7 @@ class StorageConfig(BaseModel):
     @field_validator("url", "bucket")
     @classmethod
     def not_empty(cls, v, info):
+        """Ensure string fields are not empty."""
         if not v.strip():
             raise ValueError(f"'{info.field_name}' must not be empty")
         return v
@@ -51,6 +55,8 @@ class FilenameMode(str, Enum):
 
 
 class PipelineConfig(BaseModel):
+    """Configuration for a recording pipeline."""
+
     split_max_duration_s: int = Field(..., alias="split.max_duration_s", ge=1, le=3600)
     split_max_size_bytes: int | None = Field(
         None, alias="split.max_size_bytes", ge=1_000, le=1_000_000_000
@@ -79,6 +85,7 @@ class PipelineConfig(BaseModel):
     @field_validator("include_topics")
     @classmethod
     def topics_must_be_ros_names(cls, value):
+        """Ensure topics are strings starting with '/'."""
         if not isinstance(value, list) or not all(
             isinstance(t, str) and t.startswith("/") for t in value
         ):
@@ -96,9 +103,11 @@ class PipelineConfig(BaseModel):
     )
     @classmethod
     def parse_si_units(cls, value):
+        """Parse SI units for byte values."""
         return parse_bytes_with_si_units(value)
 
     def format_for_log(self) -> str:
+        """Format the pipeline config for logging."""
         config_items = self.model_dump(by_alias=True)
         max_key_len = max(len(k) for k in config_items)
         indent = " " * 8
@@ -120,6 +129,8 @@ class PipelineConfig(BaseModel):
 
 
 class PipelineState(BaseModel):
+    """State for a recording pipeline."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     topics: list[str] = Field(default_factory=list)

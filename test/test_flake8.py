@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Test flake8 style checks."""
+
 import os
 
 import pytest
@@ -21,6 +23,7 @@ from ament_flake8.main import main_with_errors
 @pytest.mark.flake8
 @pytest.mark.linter
 def test_flake8():
+    """Test that the codebase passes flake8 style checks."""
     config_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "setup.cfg")
     )
