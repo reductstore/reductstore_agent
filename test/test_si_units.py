@@ -23,7 +23,7 @@
 
 import pytest
 
-from ros2_reduct_agent.config_models import PipelineConfig, parse_bytes_with_si_units
+from reductstore_agent.config_models import PipelineConfig, parse_bytes_with_si_units
 
 
 class TestSIUnitParsing:

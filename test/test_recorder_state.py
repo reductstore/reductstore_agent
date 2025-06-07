@@ -25,7 +25,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from ros2_reduct_agent.recorder import Recorder
+from reductstore_agent.recorder import Recorder
 
 
 def generate_string(size_kb: int) -> str:

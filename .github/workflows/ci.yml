@@ -1,4 +1,4 @@
-name: ros2-reduct-agent CI
+name: reductstore_agent CI
 
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
           AFTER_SCRIPT: |
             export COVERAGE_FILE=/tmp/.coverage
             rosenv pytest \
-              --cov=/root/target_ws/install/ros2_reduct_agent/lib/python3.12/site-packages/ros2_reduct_agent \
+              --cov=/root/target_ws/install/reductstore_agent/lib/python3.12/site-packages/reductstore_agent \
               --cov-report=term \
               --cov-fail-under=90 \
               test/

@@ -27,7 +27,7 @@ from mcap.reader import make_reader
 from mcap_ros2.decoder import DecoderFactory
 from std_msgs.msg import String
 
-from ros2_reduct_agent.utils import get_or_create_event_loop
+from reductstore_agent.utils import get_or_create_event_loop
 
 
 def publish_and_spin(publisher_node, publisher, recorder, n_msgs=3, n_cycles=2):

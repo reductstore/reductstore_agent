@@ -18,9 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Test entry point of the ros2_reduct_agent package."""
+"""Test entry point of the reductstore_agent package."""
 
-from ros2_reduct_agent.recorder import main
+from reductstore_agent.recorder import main
 
 
 def test_main_with_keyboard_interrupt(monkeypatch):
@@ -47,16 +47,16 @@ def test_main_with_keyboard_interrupt(monkeypatch):
 
     # Patch everything used in recorder.main()
     monkeypatch.setattr(
-        "ros2_reduct_agent.recorder.Recorder", lambda **kwargs: DummyNode()
+        "reductstore_agent.recorder.Recorder", lambda **kwargs: DummyNode()
     )
-    monkeypatch.setattr("ros2_reduct_agent.recorder.rclpy.init", lambda: None)
+    monkeypatch.setattr("reductstore_agent.recorder.rclpy.init", lambda: None)
     monkeypatch.setattr(
-        "ros2_reduct_agent.recorder.rclpy.spin",
+        "reductstore_agent.recorder.rclpy.spin",
         lambda node: (_ for _ in ()).throw(KeyboardInterrupt),
     )
-    monkeypatch.setattr("ros2_reduct_agent.recorder.rclpy.ok", lambda: True)
+    monkeypatch.setattr("reductstore_agent.recorder.rclpy.ok", lambda: True)
     monkeypatch.setattr(
-        "ros2_reduct_agent.recorder.rclpy.shutdown",
+        "reductstore_agent.recorder.rclpy.shutdown",
         lambda: shutdown_called.setdefault("ok", True),
     )
 

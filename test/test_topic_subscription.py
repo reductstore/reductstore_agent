@@ -23,7 +23,7 @@
 from rclpy.parameter import Parameter
 from std_msgs.msg import String
 
-from ros2_reduct_agent.recorder import Recorder
+from reductstore_agent.recorder import Recorder
 
 
 def recorder_factory(include_topics):

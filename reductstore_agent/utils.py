@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Utility functions for the ros2_reduct_agent package."""
+"""Utility functions for the reductstore_agent package."""
 
 import asyncio
 import re
