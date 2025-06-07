@@ -1,3 +1,25 @@
+# Copyright 2025 ReductSoftware UG
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+"""ROS2 ReductStore Recorder Node."""
+
 import importlib
 from collections import defaultdict
 from tempfile import SpooledTemporaryFile
@@ -21,6 +43,7 @@ class Recorder(Node):
     """ROS2 node that records selected topics to ReductStore."""
 
     def __init__(self, **kwargs):
+        """Initialize the Recorder node and set up pipelines and storage."""
         super().__init__(
             "recorder",
             allow_undeclared_parameters=True,
@@ -49,14 +72,17 @@ class Recorder(Node):
         self.setup_topic_subscriptions()
 
     def log_info(self, msg_fn):
+        """Log an info message if enabled."""
         if self.logger.is_enabled_for(LoggingSeverity.INFO):
             self.logger.info(msg_fn())
 
     def log_debug(self, msg_fn):
+        """Log a debug message if enabled."""
         if self.logger.is_enabled_for(LoggingSeverity.DEBUG):
             self.logger.debug(msg_fn())
 
     def log_warn(self, msg_fn):
+        """Log a warning message if enabled."""
         if self.logger.is_enabled_for(LoggingSeverity.WARN):
             self.logger.warn(msg_fn())
 
@@ -103,8 +129,11 @@ class Recorder(Node):
     # MCAP Management
     #
     def init_mcap_writers(self):
-        """Create an in-memory MCAP writer, per pipeline, a timer that fires
-        after max_duration_s, and a callback to upload the MCAP.
+        """
+        Create an MCAP writer for each pipeline.
+
+        For each pipeline, this method creates a timer that fires after max_duration_s
+        and a callback to upload the MCAP.
         """
         for pipeline_name, cfg in self.pipeline_configs.items():
             duration = cfg.split_max_duration_s
@@ -127,7 +156,8 @@ class Recorder(Node):
             state.timer = timer
 
             self.log_info(
-                lambda: f"[{pipeline_name}] MCAP writer initialized with config:\n{cfg.format_for_log()}"
+                lambda: f"[{pipeline_name}] MCAP writer "
+                f"initialized with config:\n{cfg.format_for_log()}"
             )
 
     def reset_pipeline_state(
@@ -192,7 +222,8 @@ class Recorder(Node):
 
             if "/msg/" not in msg_type_str:
                 self.log_warn(
-                    lambda: f"Skipping '{topic}': Invalid message type format '{msg_type_str}'."
+                    lambda: f"Skipping '{topic}': "
+                    f"Invalid message type format '{msg_type_str}'."
                 )
                 continue
 
@@ -208,7 +239,8 @@ class Recorder(Node):
                 msg_type = getattr(module, msg)
             except (ModuleNotFoundError, AttributeError) as e:
                 self.log_warn(
-                    lambda: f"Skipping '{topic}': Cannot import '{msg_type_str}' ({e})"
+                    lambda e=e: f"Skipping '{topic}': "
+                    f"Cannot import '{msg_type_str}' ({e})"
                 )
                 continue
 
@@ -238,7 +270,8 @@ class Recorder(Node):
                 )
                 state.schema_by_type[msg_type_str] = schema
                 self.log_debug(
-                    lambda: f"[{topic_name}] Registered schema for message type '{msg_type_str}'"
+                    lambda: f"[{topic_name}] Registered schema "
+                    f"for message type '{msg_type_str}'"
                 )
 
             state.schemas_by_topic[topic_name] = schema
@@ -253,7 +286,7 @@ class Recorder(Node):
         return _topic_callback
 
     def get_publish_time(self, message: Any, topic_name: str) -> int:
-        """Extract publish time from message (header.stamp or top-level stamp) in nanoseconds."""
+        """Extract publish time from message in nanoseconds."""
         if hasattr(message, "header") and hasattr(message.header, "stamp"):
             return Time.from_msg(message.header.stamp).nanoseconds
         elif hasattr(message, "stamp"):
@@ -261,7 +294,8 @@ class Recorder(Node):
 
         if topic_name not in self.warned_topics:
             self.log_warn(
-                lambda: f"Message on topic '{topic_name}' has no timestamp. Using current time."
+                lambda: f"Message on topic '{topic_name}' "
+                "has no timestamp. Using current time."
             )
             self.warned_topics.add(topic_name)
 
@@ -286,7 +320,8 @@ class Recorder(Node):
             schema = state.schemas_by_topic.get(topic_name)
             if not schema:
                 self.log_warn(
-                    lambda: f"[{pipeline_name}] No schema registered for topic '{topic_name}'"
+                    lambda: f"[{pipeline_name}] No schema "
+                    f"registered for topic '{topic_name}'"
                 )
                 continue
 
@@ -313,22 +348,25 @@ class Recorder(Node):
         return _timer_callback
 
     def upload_pipeline(self, pipeline_name: str, state: PipelineState):
-        """Finish current MCAP, upload if it contains data, and reset writer and state."""
+        """Finish current MCAP, upload it, and reset the state."""
         if not all([state.writer, state.buffer, state.timer]):
             self.log_warn(
-                lambda: f"[{pipeline_name}] Incomplete state (writer/buffer/timer) — skipping upload."
+                lambda: f"[{pipeline_name}] Incomplete state "
+                "(writer/buffer/timer) — skipping upload."
             )
             return
 
         if state.is_uploading:
             self.log_warn(
-                lambda: f"[{pipeline_name}] Upload already in progress — skipping upload."
+                lambda: f"[{pipeline_name}] Upload already in progress "
+                "— skipping upload."
             )
             return
 
         if state.current_size == 0:
             self.log_info(
-                lambda: f"[{pipeline_name}] No new data since last upload — skipping upload."
+                lambda: f"[{pipeline_name}] No new data since last upload"
+                "— skipping upload."
             )
             state.timer.reset()
             return
@@ -394,6 +432,7 @@ class Recorder(Node):
 
 
 def main():
+    """Start the Recorder node."""
     rclpy.init()
     node = Recorder()
     try:

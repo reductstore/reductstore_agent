@@ -1,3 +1,25 @@
+# Copyright 2025 ReductSoftware UG
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+"""Fixtures for testing the ros2_reduct_agent package."""
+
 from typing import Generator
 
 import pytest
@@ -14,7 +36,7 @@ from ros2_reduct_agent.utils import get_or_create_event_loop
 
 @pytest.fixture
 def reduct_client():
-    """Provides a clean ReductStore client by recreating the test bucket before and after the session."""
+    """Recreating the test bucket before and after the session."""
     loop = get_or_create_event_loop()
     client = Client("http://localhost:8383", api_token="test_token")
 
@@ -41,6 +63,7 @@ def ros_context():
 
 @pytest.fixture
 def publisher_node() -> Generator[Node, None, None]:
+    """Create a publisher node for testing."""
     node = Node("test_publisher")
     yield node
     node.destroy_node()
@@ -48,13 +71,14 @@ def publisher_node() -> Generator[Node, None, None]:
 
 @pytest.fixture
 def publisher(publisher_node: Node) -> Publisher:
+    """Create a publisher for the test topic."""
     pub = publisher_node.create_publisher(String, "/test/topic", 10)
     return pub
 
 
 @pytest.fixture
 def basic_recorder() -> Generator[Recorder, None, None]:
-    """Recorder configured to slice every 1s and upload /test/topic."""
+    """Record every 1s and upload MCAP file with /test/topic."""
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
@@ -82,7 +106,7 @@ def basic_recorder() -> Generator[Recorder, None, None]:
 
 @pytest.fixture
 def low_chunk_recorder() -> Generator[Recorder, None, None]:
-    """Recorder configured with low chunk size and no compression for large message test."""
+    """Record with low chunk size and no compression for large message test."""
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
@@ -120,7 +144,7 @@ def low_chunk_recorder() -> Generator[Recorder, None, None]:
 
 @pytest.fixture
 def parallel_recorder() -> Generator[Recorder, None, None]:
-    """Recorder with two parallel pipelines: /test/topic and /rosout"""
+    """Record with two parallel pipelines: /test/topic and /rosout."""
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
