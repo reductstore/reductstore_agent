@@ -16,7 +16,6 @@ import pytest
 from ament_pep257.main import main
 
 
-@pytest.mark.skip(reason="Work in progress, pep257 not yet configured")
 @pytest.mark.linter
 @pytest.mark.pep257
 def test_pep257():

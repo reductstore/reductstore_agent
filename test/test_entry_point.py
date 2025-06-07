@@ -24,7 +24,6 @@ from ros2_reduct_agent.recorder import main
 
 def test_main_with_keyboard_interrupt(monkeypatch):
     """Simulate KeyboardInterrupt and verify node cleanup."""
-
     destroyed = {}
     shutdown_called = {}
 

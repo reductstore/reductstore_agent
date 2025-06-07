@@ -49,7 +49,6 @@ def publisher(publisher_node: Node):
 @pytest.mark.parametrize("size_kb", [1, 10, 100])
 def test_recorder_state_size(publisher_node, publisher, low_chunk_recorder, size_kb):
     """Test that the Recorder node can handle large messages."""
-
     msg = String()
     msg.data = generate_string(size_kb)
 

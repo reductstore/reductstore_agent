@@ -124,8 +124,11 @@ class Recorder(Node):
     # MCAP Management
     #
     def init_mcap_writers(self):
-        """Create an in-memory MCAP writer, per pipeline, a timer that fires
-        after max_duration_s, and a callback to upload the MCAP.
+        """
+        Create an MCAP writer for each pipeline.
+
+        For each pipeline, this method creates a timer that fires after max_duration_s
+        and a callback to upload the MCAP.
         """
         for pipeline_name, cfg in self.pipeline_configs.items():
             duration = cfg.split_max_duration_s

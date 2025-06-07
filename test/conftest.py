@@ -35,7 +35,7 @@ from ros2_reduct_agent.utils import get_or_create_event_loop
 
 @pytest.fixture
 def reduct_client():
-    """Provides a clean ReductStore client by recreating the test bucket before and after the session."""
+    """Provide a clean ReductStore client by recreating the test bucket before and after the session."""
     loop = get_or_create_event_loop()
     client = Client("http://localhost:8383", api_token="test_token")
 
@@ -75,7 +75,7 @@ def publisher(publisher_node: Node) -> Publisher:
 
 @pytest.fixture
 def basic_recorder() -> Generator[Recorder, None, None]:
-    """Recorder configured to slice every 1s and upload /test/topic."""
+    """Record every 1s and upload MCAP file with /test/topic."""
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
@@ -103,7 +103,7 @@ def basic_recorder() -> Generator[Recorder, None, None]:
 
 @pytest.fixture
 def low_chunk_recorder() -> Generator[Recorder, None, None]:
-    """Recorder configured with low chunk size and no compression for large message test."""
+    """Record with low chunk size and no compression for large message test."""
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
@@ -141,7 +141,7 @@ def low_chunk_recorder() -> Generator[Recorder, None, None]:
 
 @pytest.fixture
 def parallel_recorder() -> Generator[Recorder, None, None]:
-    """Recorder with two parallel pipelines: /test/topic and /rosout"""
+    """Record with two parallel pipelines: /test/topic and /rosout."""
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
