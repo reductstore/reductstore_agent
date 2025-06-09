@@ -13,7 +13,7 @@ This agent is fully configurable via YAML and designed to solve storage, bandwid
 To use this agent, you must have a running instance of ReductStore. You can start a local instance using Docker, install it via Snap or from binaries. Refer to the official guide for setup instructions: [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started)
 
 This agent is tested with:
-- ROS 2: Jazzy Jalisco
+- ROS 2: Jazzy and Rolling
 - OS: Ubuntu 24.04 (Noble)
 - Python: 3.12
 

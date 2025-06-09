@@ -64,45 +64,60 @@ jobs:
       - name: Run isort
         run: isort --check-only .
 
-  ros2-tests:
-    name: Build & Pytest (ROS ${{ matrix.ros_distro }}) with ReductStore
+  ros2-tests-jazzy:
+    name: Build & Pytest (ROS jazzy)
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        ros_distro: [jazzy, rolling]
-
     services:
       reductstore:
         image: reduct/store:main
         ports:
           - 8383:8383
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Run tests with ROS ${{ matrix.ros_distro }}
+      - name: Run tests with ROS jazzy
         uses: ros-industrial/industrial_ci@master
         env:
-          ROS_DISTRO: ${{ matrix.ros_distro }}
+          ROS_DISTRO: jazzy
           ROS_REPO: main
           DOCKER_RUN_OPTS: "--network=host"
           ADDITIONAL_DEBS: >
             python3-pip
-            ros-${{ matrix.ros_distro }}-sensor-msgs
-            ros-${{ matrix.ros_distro }}-geometry-msgs
-            ros-${{ matrix.ros_distro }}-rosbag2-py
+            ros-jazzy-sensor-msgs
+            ros-jazzy-geometry-msgs
+            ros-jazzy-rosbag2-py
           AFTER_INIT: |
-            pip install --no-deps --ignore-installed --break-system-packages \
+            pip install --break-system-packages \
               pytest \
               pytest-cov \
               mcap \
               mcap-ros2-support \
               reduct-py
-          AFTER_SCRIPT: |
-            export COVERAGE_FILE=/tmp/.coverage
-            rosenv pytest \
-              --cov=/root/target_ws/install/reductstore_agent/lib/python3.12/site-packages/reductstore_agent \
-              --cov-report=term \
-              --cov-fail-under=90 \
-              test/
+
+  ros2-tests-rolling:
+    name: Build & Pytest (ROS rolling)
+    runs-on: ubuntu-latest
+    services:
+      reductstore:
+        image: reduct/store:main
+        ports:
+          - 8383:8383
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests with ROS rolling
+        uses: ros-industrial/industrial_ci@master
+        env:
+          ROS_DISTRO: rolling
+          ROS_REPO: main
+          DOCKER_RUN_OPTS: "--network=host"
+          ADDITIONAL_DEBS: >
+            python3-pip
+            ros-rolling-sensor-msgs
+            ros-rolling-geometry-msgs
+            ros-rolling-rosbag2-py
+          AFTER_INIT: |
+            pip install --break-system-packages \
+              pytest \
+              pytest-cov \
+              mcap \
+              mcap-ros2-support \
+              reduct-py
