@@ -93,7 +93,7 @@ jobs:
             ros-$ROS_DISTRO-geometry-msgs
             ros-$ROS_DISTRO-rosbag2-py
           AFTER_INIT: |
-            pip install --break-system-packages \
+            pip install --no-deps --ignore-installed --break-system-packages \
               pytest \
               pytest-cov \
               mcap \
