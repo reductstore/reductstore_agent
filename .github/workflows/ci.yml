@@ -115,7 +115,7 @@ jobs:
             ros-rolling-geometry-msgs
             ros-rolling-rosbag2-py
           AFTER_INIT: |
-            pip install --break-system-packages \
+            pip install --no-deps --force-reinstall --ignore-installed --break-system-packages \
               pytest \
               pytest-cov \
               mcap \
