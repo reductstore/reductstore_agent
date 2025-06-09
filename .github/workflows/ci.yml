@@ -65,8 +65,12 @@ jobs:
         run: isort --check-only .
 
   ros2-tests:
-    name: Build & Pytest (ROS 2 Jazzy) with ReductStore
+    name: Build & Pytest (ROS ${{ matrix.ros_distro }}) with ReductStore
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        ros_distro: [jazzy, rolling]
 
     services:
       reductstore:
@@ -77,10 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run pytest
+      - name: Run tests with ROS ${{ matrix.ros_distro }}
         uses: ros-industrial/industrial_ci@master
         env:
-          ROS_DISTRO: jazzy
+          ROS_DISTRO: ${{ matrix.ros_distro }}
           ROS_REPO: main
           DOCKER_RUN_OPTS: "--network=host"
           ADDITIONAL_DEBS: >
