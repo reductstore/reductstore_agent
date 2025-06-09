@@ -89,9 +89,9 @@ jobs:
           DOCKER_RUN_OPTS: "--network=host"
           ADDITIONAL_DEBS: >
             python3-pip
-            ros-$ROS_DISTRO-sensor-msgs
-            ros-$ROS_DISTRO-geometry-msgs
-            ros-$ROS_DISTRO-rosbag2-py
+            ros-${{ matrix.ros_distro }}-sensor-msgs
+            ros-${{ matrix.ros_distro }}-geometry-msgs
+            ros-${{ matrix.ros_distro }}-rosbag2-py
           AFTER_INIT: |
             pip install --no-deps --ignore-installed --break-system-packages \
               pytest \
