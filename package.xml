@@ -3,7 +3,7 @@
 <package format="3">
 
   <name>reductstore_agent</name>
-  <version>0.0.0</version>
+  <version>0.1.0</version>
   <description>ROS2 recorder node that logs selected topics to ReductStore, with YAML-driven pipelines (mcap/raw, compression, splitting, down-sampling, labelling).</description>
 
   <maintainer email="info@reduct.store">Anthony Cavin</maintainer>

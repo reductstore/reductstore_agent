@@ -3,11 +3,46 @@ name: reductstore_agent CI
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
+    paths-ignore:
+      - README.md
+      - CHANGELOG.md
+
   pull_request:
     branches: [main]
+    paths-ignore:
+      - README.md
+      - CHANGELOG.md
 
 jobs:
-  lint-and-format:
+  check-version-tag:
+    name: Check Git Tag Matches package.xml
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+
+      - name: Check tag matches version in package.xml
+        run: |
+          TAG_NAME="${GITHUB_REF##*/}"
+          echo "Git tag is $TAG_NAME"
+
+          PACKAGE_VERSION=$(xmllint --xpath "string(//version)" package.xml)
+          echo "Version from package.xml is $PACKAGE_VERSION"
+
+          if [ "v$PACKAGE_VERSION" != "$TAG_NAME" ]; then
+            echo "❌ Tag $TAG_NAME does not match version in package.xml ($PACKAGE_VERSION)"
+            exit 1
+          fi
+
+          echo "✅ Tag matches version in package.xml"
+
+  format:
     name: Formatting Check
     runs-on: ubuntu-latest
 
