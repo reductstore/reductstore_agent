@@ -1,8 +1,6 @@
 # reductstore_agent
 
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/reductstore/reductstore_agent/ci.yml?branch=main)](https://github.com/reductstore/reductstore_agent/actions)
-[![Community](https://img.shields.io/discourse/status?server=https%3A%2F%2Fcommunity.reduct.store
-)](https://community.reduct.store/signup)
+[![ROS 2 Jazzy & Rolling](https://img.shields.io/github/actions/workflow/status/reductstore/reductstore_agent/ci.yml?branch=main&label=ROS%202%20CI%20(Jazzy%20%26%20Rolling))](https://github.com/reductstore/reductstore_agent/actions/workflows/ci.yml)
 
 **reductstore_agent** is a ROS 2 node that records selected topics into [ReductStore](https://www.reduct.store/), a high-performance storage and streaming solution. ReductStore is an ELT-based system for robotics and industrial IoT data acquisition. It ingests and streams time-series data of any size—images, sensor readings, logs, files, MCAP, ROS bags—and stores it with time indexing and labels for ultra-fast retrieval and management.
 
