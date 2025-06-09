@@ -87,8 +87,6 @@ jobs:
             ros-jazzy-rosbag2-py
           AFTER_INIT: |
             pip install --break-system-packages \
-              pytest \
-              pytest-cov \
               mcap \
               mcap-ros2-support \
               reduct-py
@@ -115,9 +113,7 @@ jobs:
             ros-rolling-geometry-msgs
             ros-rolling-rosbag2-py
           AFTER_INIT: |
-            pip install --no-deps --force-reinstall --ignore-installed --break-system-packages \
-              pytest \
-              pytest-cov \
+            pip install --break-system-packages \
               mcap \
               mcap-ros2-support \
               reduct-py
