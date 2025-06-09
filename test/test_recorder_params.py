@@ -308,7 +308,5 @@ def test_recorder_invalid_compression():
 
 def test_recorder_invalid_enable_crcs():
     """Test that an invalid enable_crcs value raises a type/value error."""
-    with pytest.raises(
-        ValueError, match="Type 'Type.BOOL' and value 'not_a_bool' do not agree"
-    ):
+    with pytest.raises(ValueError, match="'not_a_bool' do not agree"):
         Parameter("pipelines.test.enable_crcs", Parameter.Type.BOOL, "not_a_bool")

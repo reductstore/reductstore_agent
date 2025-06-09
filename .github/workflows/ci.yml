@@ -89,7 +89,8 @@ jobs:
             pip install --break-system-packages \
               mcap \
               mcap-ros2-support \
-              reduct-py
+              reduct-py \
+              flake8==7.0.0
 
   ros2-tests-rolling:
     name: Build & Pytest (ROS rolling)
@@ -116,4 +117,5 @@ jobs:
             pip install --force-reinstall --ignore-installed --break-system-packages \
               mcap \
               mcap-ros2-support \
-              reduct-py
+              reduct-py \
+              flake8==7.0.0
