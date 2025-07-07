@@ -310,3 +310,47 @@ def test_recorder_invalid_enable_crcs():
     """Test that an invalid enable_crcs value raises a type/value error."""
     with pytest.raises(ValueError, match="'not_a_bool' do not agree"):
         Parameter("pipelines.test.enable_crcs", Parameter.Type.BOOL, "not_a_bool")
+
+
+def test_recorder_valid_quota_and_block_params():
+    """Test that valid quota and block size parameters are accepted."""
+    storage_dict = storage_params()
+    storage_dict["quota_type"] = "FIFO"
+    storage_dict["quota_size"] = "1GB"
+    storage_dict["max_block_size"] = "10MB"
+    storage_dict["max_block_records"] = "1000"
+    node = Recorder(parameter_overrides=as_overrides(storage_dict))
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
+def test_recorder_invalid_quota_type():
+    """Test that an invalid quota type raises a validation error."""
+    storage_dict = storage_params()
+    storage_dict["quota_type"] = "invalid_quota"
+    with pytest.raises(ValueError, match="Invalid quota type: 'invalid_quota'"):
+        Recorder(parameter_overrides=as_overrides(storage_dict))
+
+
+def test_recorder_invalid_quota_size():
+    """Test that an invalid quota size raises a validation error."""
+    storage_dict = storage_params()
+    storage_dict["quota_size"] = "invalid_size"
+    with pytest.raises(ValueError, match="Invalid byte value format"):
+        Recorder(parameter_overrides=as_overrides(storage_dict))
+
+
+def test_recorder_invalid_max_block_size():
+    """Test that an invalid max block size raises a validation error."""
+    storage_dict = storage_params()
+    storage_dict["max_block_size"] = "invalid_size"
+    with pytest.raises(ValueError, match="Invalid byte value format"):
+        Recorder(parameter_overrides=as_overrides(storage_dict))
+
+
+def test_recorder_invalid_max_block_records():
+    """Test that an invalid max records per block raises a validation error."""
+    storage_dict = storage_params()
+    storage_dict["max_block_records"] = "invalid_size"
+    with pytest.raises(ValueError, match="should be a valid integer"):
+        Recorder(parameter_overrides=as_overrides(storage_dict))
