@@ -127,7 +127,13 @@ class Recorder(Node):
                 )
             pipeline_name = parts[1]
             subkey = ".".join(parts[2:])
-            pipelines_raw[pipeline_name][subkey] = value
+            if subkey.startswith("static_labels."):
+                label_key = subkey.split(".", 1)[1]
+                pipelines_raw[pipeline_name].setdefault("static_labels", {})[
+                    label_key
+                ] = value
+            else:
+                pipelines_raw[pipeline_name][subkey] = value
 
         pipelines: dict[str, PipelineConfig] = {}
         for name, cfg in pipelines_raw.items():
@@ -439,6 +445,7 @@ class Recorder(Node):
             file_index,
             content_length,
             content_type="application/mcap",
+            labels=self.pipeline_configs[pipeline_name].static_labels,
         )
 
     async def read_in_chunks(
