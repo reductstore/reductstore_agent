@@ -101,8 +101,10 @@ class PipelineConfig(BaseModel):
         ge=1_000,
         le=1_000_000_000,
     )
+
     include_topics: list[str] = Field(default_factory=list)
     exclude_topics: list[str] = Field(default_factory=list)
+    static_labels: dict[str, str] = Field(default_factory=dict)
     filename_mode: FilenameMode = FilenameMode.TIMESTAMP
 
     @field_validator("include_topics", "exclude_topics")
@@ -118,6 +120,19 @@ class PipelineConfig(BaseModel):
                 re.compile(pattern)
             except re.error as exc:
                 raise ValueError(f"Invalid regex pattern '{pattern}': {exc}")
+        return value
+
+    @field_validator("static_labels")
+    @classmethod
+    def non_empty_labels(cls, value):
+        """Validate that label keys and values are non-empty strings."""
+        if not isinstance(value, dict):
+            raise ValueError("'static_labels' must be a mapping")
+        for k, v in value.items():
+            if not isinstance(k, str) or not k.strip():
+                raise ValueError("Label keys must be non-empty strings")
+            if not isinstance(v, str) or not v.strip():
+                raise ValueError("Label values must be non-empty strings")
         return value
 
     @field_validator(

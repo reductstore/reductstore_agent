@@ -43,6 +43,9 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
           - "/camera/.*"
         exclude_topics:
           - "/camera/ignore"
+        static_labels:
+          source: telemetry
+          robot: alpha
         split:
           max_duration_s: 3600
           max_size_bytes: 10000
@@ -116,6 +119,9 @@ Each pipeline supports the following parameters:
 
 * **`include_topics`**: List of topics to include for recording. Supports regular expressions.
 * **`exclude_topics`** *(optional)*: List of topics to exclude from recording. Supports regular expressions.
+
+* **`static_labels`** *(optional)*: Fixed key-value labels to attach to each record.
+
 * **`filename_mode`**: Determines how filenames are generated. One of:
 
   * `"timestamp"` *(default)* — Use first topic timestamp for filenames.

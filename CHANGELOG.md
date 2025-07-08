@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add support for bucket settings, [PR-22](https://github.com/reductstore/reductstore_agent/pull/22)
 - Add support for regular expression filters, [PR-23](https://github.com/reductstore/reductstore_agent/pull/23)
+- Support static labels per pipeline to tag uploaded records, [PR-24](https://github.com/reductstore/reductstore_agent/pull/24)
 
 ## [0.1.0] - 2025-06-09
 
