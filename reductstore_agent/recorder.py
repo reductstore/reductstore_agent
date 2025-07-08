@@ -32,7 +32,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.subscription import Subscription
 from rclpy.time import Time
-from reduct import Client
+from reduct import BucketSettings, Client
 from rosbag2_py import LocalMessageDefinitionSource
 
 from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
@@ -88,12 +88,27 @@ class Recorder(Node):
 
     def load_storage_config(self) -> StorageConfig:
         """Parse and validate storage parameters."""
+        required_keys = ["url", "api_token", "bucket"]
+        optional_keys = [
+            "quota_type",
+            "quota_size",
+            "max_block_size",
+            "max_block_records",
+        ]
+
         params = {}
-        for key in ["url", "api_token", "bucket"]:
+
+        for key in required_keys:
             param = f"storage.{key}"
             if not self.has_parameter(param):
                 raise ValueError(f"Missing parameter: '{param}'")
             params[key] = self.get_parameter(param).value
+
+        for key in optional_keys:
+            param = f"storage.{key}"
+            if self.has_parameter(param):
+                params[key] = self.get_parameter(param).value
+
         return StorageConfig(**params)
 
     def load_pipeline_config(self) -> dict[str, PipelineConfig]:
@@ -121,8 +136,14 @@ class Recorder(Node):
 
     async def init_reduct_bucket(self):
         """Initialize or create ReductStore bucket."""
+        settings = BucketSettings(
+            quota_type=self.storage_config.quota_type,
+            quota_size=self.storage_config.quota_size,
+            max_block_size=self.storage_config.max_block_size,
+            max_block_records=self.storage_config.max_block_records,
+        )
         self.bucket = await self.client.create_bucket(
-            self.storage_config.bucket, exist_ok=True
+            self.storage_config.bucket, settings, exist_ok=True
         )
 
     #

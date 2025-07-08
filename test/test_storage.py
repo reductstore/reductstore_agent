@@ -25,6 +25,7 @@ import io
 import rclpy
 from mcap.reader import make_reader
 from mcap_ros2.decoder import DecoderFactory
+from reduct import BucketFullInfo, QuotaType
 from std_msgs.msg import String
 
 from reductstore_agent.utils import get_or_create_event_loop
@@ -164,3 +165,17 @@ def test_parallel_pipelines_upload_both_topics(
     for schema, channel, _, _ in reader2.iter_decoded_messages():
         assert schema.name == "rcl_interfaces/msg/Log"
         assert channel.topic == "/rosout"
+
+
+def test_bucket_with_quota(reduct_client, quota_recorder):
+    """Test that the bucket respects the quota settings."""
+
+    async def fetch_info() -> BucketFullInfo:
+        bucket = await reduct_client.get_bucket("test_bucket")
+        return await bucket.get_full_info()
+
+    info = get_or_create_event_loop().run_until_complete(fetch_info())
+    assert info.settings.quota_type == QuotaType.FIFO
+    assert info.settings.quota_size == 100_000_000
+    assert info.settings.max_block_size == 10_000_000
+    assert info.settings.max_block_records == 2048

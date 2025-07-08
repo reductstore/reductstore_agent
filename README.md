@@ -34,6 +34,8 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
       url: "http://localhost:8383"
       api_token: "access_token"
       bucket: "ros_data"
+      quota_type: "FIFO"
+      quota_size: "200GB"
     pipelines:
       telemetry:
         filename_mode: "timestamp"
@@ -79,8 +81,15 @@ The `storage` section specifies the ReductStore instance to connect to:
  * **`url`**: The URL of the ReductStore instance (e.g., `http://localhost:8383`).
  * **`api_token`**: The API token for authentication. This is required to access the ReductStore instance.
  * **`bucket`**: The bucket name where the data will be stored.
+  * **`quota_type`**: The type of quota to apply. Options are:
+    * `"FIFO"`: First In, First Out (oldest data is removed first).
+    * `"HARD"`: Hard limit (data is not accepted when the quota is reached).
+    * `"NONE"`: No quota applied.
+  * **`quota_size`**: The size of the quota in bytes. This is required if `quota_type` is set to `"FIFO"` or `"HARD"`.
+  * **`max_block_size`**: Maximum size of each block in bytes.
+  * **`max_block_records`**: Maximum number of records per block.
 
- More information on how to setup ReductStore can be found in the [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started).
+More information on how to setup ReductStore can be found in the [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started).
 
 ### Pipeline Parameters
 

@@ -27,16 +27,21 @@ from mcap.records import Schema
 from mcap_ros2.writer import Writer as McapWriter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rclpy.timer import Timer
+from reduct import QuotaType
 
 from .utils import parse_bytes_with_si_units
 
 
 class StorageConfig(BaseModel):
-    """Configuration for ReductStore storage connection."""
+    """Configuration for ReductStore storage connection and bucket settings."""
 
     url: str
     bucket: str
     api_token: str = ""
+    quota_type: QuotaType = QuotaType.NONE
+    quota_size: int | None = None
+    max_block_size: int | None = None
+    max_block_records: int | None = None
 
     @field_validator("url", "bucket")
     @classmethod
@@ -45,6 +50,25 @@ class StorageConfig(BaseModel):
         if not v.strip():
             raise ValueError(f"'{info.field_name}' must not be empty")
         return v
+
+    @field_validator("quota_type", mode="before")
+    @classmethod
+    def validate_quota_type(cls, v):
+        """Manually validate quota_type since reduct.QuotaType is not a str Enum."""
+        if isinstance(v, QuotaType):
+            return v
+        try:
+            return QuotaType[v.upper()]
+        except (KeyError, AttributeError):
+            raise ValueError(f"Invalid quota type: '{v}'")
+
+    @field_validator("quota_size", "max_block_size", mode="before")
+    @classmethod
+    def parse_si_units(cls, value):
+        """Parse SI units for size values."""
+        if value is None:
+            return None
+        return parse_bytes_with_si_units(value)
 
 
 class FilenameMode(str, Enum):

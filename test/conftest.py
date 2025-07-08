@@ -46,8 +46,6 @@ def reduct_client():
             bucket = await client.get_bucket("test_bucket")
             await bucket.remove()
 
-    loop.run_until_complete(cleanup())
-
     yield client
 
     loop.run_until_complete(cleanup())
@@ -97,6 +95,39 @@ def basic_recorder() -> Generator[Recorder, None, None]:
             "pipelines.timer_test_topic.filename_mode",
             Parameter.Type.STRING,
             "incremental",
+        ),
+    ]
+    rec = Recorder(parameter_overrides=params)
+    yield rec
+    rec.destroy_node()
+
+
+@pytest.fixture
+def quota_recorder() -> Generator[Recorder, None, None]:
+    """Record with quota settings."""
+    params = [
+        Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+        Parameter(
+            "storage.quota_type",
+            Parameter.Type.STRING,
+            "FIFO",
+        ),
+        Parameter(
+            "storage.quota_size",
+            Parameter.Type.INTEGER,
+            100_000_000,
+        ),
+        Parameter(
+            "storage.max_block_size",
+            Parameter.Type.INTEGER,
+            10_000_000,
+        ),
+        Parameter(
+            "storage.max_block_records",
+            Parameter.Type.INTEGER,
+            2048,
         ),
     ]
     rec = Recorder(parameter_overrides=params)
