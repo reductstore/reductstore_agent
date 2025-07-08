@@ -95,7 +95,7 @@ class PipelineConfig(BaseModel):
         "zstd",
         pattern=r"^(none|lz4|zstd)$",
     )
-    enable_crcs: bool = Field(True)
+    enable_crcs: bool = True
     spool_max_size_bytes: int = Field(
         10_000_000,
         ge=1_000,
