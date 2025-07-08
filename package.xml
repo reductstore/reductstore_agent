@@ -6,7 +6,8 @@
   <version>0.1.0</version>
   <description>ROS2 recorder node that logs selected topics to ReductStore, with YAML-driven pipelines (mcap/raw, compression, splitting, down-sampling, labelling).</description>
 
-  <maintainer email="info@reduct.store">Anthony Cavin</maintainer>
+  <maintainer email="info@reduct.store">Anthony Cavin (@anthonycvn)</maintainer>
+  <maintainer email="info@reduct.store">Alexey Timin (@atimin)</maintainer>
   <author email="info@reduct.store">Anthony Cavin</author>
 
   <license>MIT</license>
