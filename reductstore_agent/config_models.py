@@ -20,6 +20,7 @@
 
 """Configuration models for the reductstore_agent package."""
 
+import re
 from enum import Enum
 from tempfile import SpooledTemporaryFile
 
@@ -87,36 +88,38 @@ class PipelineConfig(BaseModel):
     )
     chunk_size_bytes: int = Field(
         1_000_000,
-        alias="chunk_size_bytes",
         ge=1_000,
         le=10_000_000,
     )
     compression: str = Field(
         "zstd",
-        alias="compression",
         pattern=r"^(none|lz4|zstd)$",
     )
-    enable_crcs: bool = Field(True, alias="enable_crcs")
+    enable_crcs: bool = True
     spool_max_size_bytes: int = Field(
         10_000_000,
-        alias="spool_max_size_bytes",
         ge=1_000,
         le=1_000_000_000,
     )
-    static_labels: dict[str, str] = Field(default_factory=dict)
-    include_topics: list[str] = Field(..., alias="include_topics")
-    filename_mode: FilenameMode = Field(FilenameMode.TIMESTAMP, alias="filename_mode")
 
-    @field_validator("include_topics")
+    include_topics: list[str] = Field(default_factory=list)
+    exclude_topics: list[str] = Field(default_factory=list)
+    static_labels: dict[str, str] = Field(default_factory=dict)
+    filename_mode: FilenameMode = FilenameMode.TIMESTAMP
+
+    @field_validator("include_topics", "exclude_topics")
     @classmethod
-    def topics_must_be_ros_names(cls, value):
-        """Ensure topics are strings starting with '/'."""
-        if not isinstance(value, list) or not all(
-            isinstance(t, str) and t.startswith("/") for t in value
-        ):
-            raise ValueError(
-                "'include_topics' must be a list of ROS topic names starting with '/'"
-            )
+    def validate_topics_list(cls, value):
+        """Ensure provided strings are valid regex patterns."""
+        if not isinstance(value, list):
+            raise ValueError("Value must be a list of regex patterns")
+        for pattern in value:
+            if not isinstance(pattern, str):
+                raise ValueError("Regex patterns must be strings")
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"Invalid regex pattern '{pattern}': {exc}")
         return value
 
     @field_validator("static_labels")

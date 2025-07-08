@@ -8,7 +8,9 @@
       telemetry:
         filename_mode: "incremental"
         include_topics:
-          - /recorder/input
+          - "/camera/.*"
+        exclude_topics:
+          - "/camera/ignore"
         static_labels:
           source: telemetry
           robot: alpha
@@ -18,7 +20,7 @@
       rosout:
         filename_mode: "incremental"
         include_topics:
-          - /rosout
+          - "/rosout"
         split:
           max_duration_s: 10
           max_size_bytes: "5MB"

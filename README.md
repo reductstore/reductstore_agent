@@ -40,7 +40,9 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
       telemetry:
         filename_mode: "timestamp"
         include_topics:
-          - /recorder/input
+          - "/camera/.*"
+        exclude_topics:
+          - "/camera/ignore"
         static_labels:
           source: telemetry
           robot: alpha
@@ -115,7 +117,9 @@ Each pipeline supports the following parameters:
 
 * **`spool_max_size_bytes`**: Maximum in-memory spool size before flushing. Defaults to `10MB`. Must be between `1KB` and `1GB`.
 
-* **`include_topics`**: A list of ROS topics to record. Each topic must start with a `/`.
+* **`include_topics`**: List of topics to include for recording. Supports regular expressions.
+* **`exclude_topics`** *(optional)*: List of topics to exclude from recording. Supports regular expressions.
+
 * **`static_labels`** *(optional)*: Fixed key-value labels to attach to each record.
 
 * **`filename_mode`**: Determines how filenames are generated. One of:

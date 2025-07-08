@@ -139,11 +139,6 @@ def test_recorder_empty_storage_value(empty_key):
             1000000001,
             "less than or equal to 1000000000",
         ),
-        (
-            "pipelines.test.include_topics",
-            ["/valid_topic", "invalid_topic"],
-            "must be a list of ROS topic names starting with '/'",
-        ),
     ],
 )
 def test_recorder_invalid_pipeline_param(param_name, invalid_value, err_msg):
