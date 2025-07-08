@@ -216,3 +216,57 @@ def parallel_recorder() -> Generator[Recorder, None, None]:
     rec = Recorder(parameter_overrides=params)
     yield rec
     rec.destroy_node()
+
+
+@pytest.fixture
+def labels_recorder() -> Generator[Recorder, None, None]:
+    """Record with static labels and two pipelines: labeled and unlabeled."""
+    params = [
+        Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+        Parameter(
+            "pipelines.labeled.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+        Parameter(
+            "pipelines.labeled.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+        Parameter(
+            "pipelines.labeled.filename_mode",
+            Parameter.Type.STRING,
+            "incremental",
+        ),
+        Parameter(
+            "pipelines.labeled.static_labels.source",
+            Parameter.Type.STRING,
+            "telemetry",
+        ),
+        Parameter(
+            "pipelines.labeled.static_labels.robot",
+            Parameter.Type.STRING,
+            "alpha",
+        ),
+        # Second pipeline without labels
+        Parameter(
+            "pipelines.unlabeled.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+        Parameter(
+            "pipelines.unlabeled.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+        Parameter(
+            "pipelines.unlabeled.filename_mode",
+            Parameter.Type.STRING,
+            "incremental",
+        ),
+    ]
+    rec = Recorder(parameter_overrides=params)
+    yield rec
+    rec.destroy_node()
