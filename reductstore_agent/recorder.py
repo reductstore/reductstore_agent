@@ -157,9 +157,12 @@ class Recorder(Node):
         For each pipeline, this method creates a timer that fires after max_duration_s
         and a callback to upload the MCAP.
         """
+        topic_types = dict(self.get_topic_names_and_types())
+        all_topics = set(topic_types)
+
         for pipeline_name, cfg in self.pipeline_configs.items():
             duration = cfg.split_max_duration_s
-            topics = cfg.include_topics
+            topics = self.resolve_topics(cfg, all_topics)
             max_size = cfg.spool_max_size_bytes
             buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
             writer = self.create_mcap_writer(buffer, pipeline_name)
@@ -227,26 +230,34 @@ class Recorder(Node):
     #
     # Topic Subscription
     #
+    def resolve_topics(self, cfg: PipelineConfig, all_topics: set[str]) -> set[str]:
+        """Resolve topics to subscribe to based on include/exclude patterns."""
+
+        def compile_smart(p: str) -> re.Pattern:
+            """Compile a pattern as regex if contains special characters."""
+            regex_chars = set(".^$*+?{}[]\\|()")
+            if any(c in regex_chars for c in p):
+                return re.compile(p)
+            return re.compile(f"^{re.escape(p)}$")
+
+        include_patterns = [compile_smart(p) for p in cfg.include_topics]
+        exclude_patterns = [compile_smart(p) for p in cfg.exclude_topics]
+
+        return {
+            topic
+            for topic in all_topics
+            if any(r.search(topic) for r in include_patterns)
+            and not any(r.search(topic) for r in exclude_patterns)
+        }
+
     def setup_topic_subscriptions(self):
         """Subscribe to all topics referenced by any pipeline."""
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
         topics_to_subscribe: set[str] = set()
 
-        for name, cfg in self.pipeline_configs.items():
-            include_re = [re.compile(p) for p in cfg.include_regex]
-            exclude_re = [re.compile(p) for p in cfg.exclude_regex]
-
-            final_topics = set(cfg.include_topics)
-            for topic in all_topics:
-                if any(r.search(topic) for r in include_re):
-                    final_topics.add(topic)
-
-            final_topics = {
-                t for t in final_topics if not any(r.search(t) for r in exclude_re)
-            }
-
-            topics_to_subscribe.update(final_topics)
+        for cfg in self.pipeline_configs.values():
+            topics_to_subscribe.update(self.resolve_topics(cfg, all_topics))
 
         for topic in topics_to_subscribe:
             msg_types = topic_types.get(topic)

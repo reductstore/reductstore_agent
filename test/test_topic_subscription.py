@@ -26,11 +26,10 @@ from std_msgs.msg import String
 from reductstore_agent.recorder import Recorder
 
 
-def recorder_factory(include_topics=None, include_regex=None, exclude_regex=None):
+def recorder_factory(include_topics=None, exclude_topics=None):
     """Create a Recorder instance with specified topics and regex filters."""
     include_topics = include_topics or []
-    include_regex = include_regex or []
-    exclude_regex = exclude_regex or []
+    exclude_topics = exclude_topics or []
     params = [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
@@ -41,14 +40,9 @@ def recorder_factory(include_topics=None, include_regex=None, exclude_regex=None
             include_topics,
         ),
         Parameter(
-            "pipelines.test.include_regex",
+            "pipelines.test.exclude_topics",
             Parameter.Type.STRING_ARRAY,
-            include_regex,
-        ),
-        Parameter(
-            "pipelines.test.exclude_regex",
-            Parameter.Type.STRING_ARRAY,
-            exclude_regex,
+            exclude_topics,
         ),
         Parameter(
             "pipelines.test.split.max_duration_s",
@@ -107,21 +101,29 @@ def test_recorder_subscribed_to_multiple_topics(publisher_node):
 
 
 def test_topic_included_by_regex(publisher_node):
-    """Recorder should include topics matching include_regex."""
-    publisher_node.create_publisher(String, "/regex/topic1", 10)
-    recorder = recorder_factory(include_regex=[r"/regex/.*"])
+    """Recorder should include topics matching include_topics."""
+    publisher_node.create_publisher(String, "test/regex/topic1", 10)
+    recorder = recorder_factory(include_topics=[".*/regex/.*"])
 
-    info = recorder.get_subscriptions_info_by_topic("/regex/topic1")
+    info = recorder.get_subscriptions_info_by_topic("test/regex/topic1")
     assert len(info) == 1
 
     recorder.destroy_node()
 
 
+def test_plain_string_pattern_is_not_treated_as_regex(publisher_node):
+    """Recorder should not treat plain string as regex."""
+    publisher_node.create_publisher(String, "/plain/topic/extra", 10)
+    recorder = recorder_factory(include_topics=["/plain/topic"])
+    info = recorder.get_subscriptions_info_by_topic("/plain/topic/extra")
+    assert info == [], "Recorder treated plain string as regex unexpectedly"
+
+
 def test_topic_excluded_by_regex(publisher_node):
-    """Recorder should exclude topics matching exclude_regex."""
+    """Recorder should exclude topics matching exclude_topics."""
     publisher_node.create_publisher(String, "/regex/topic2", 10)
     recorder = recorder_factory(
-        include_regex=[r"/regex/.*"], exclude_regex=[r"topic2$"]
+        include_topics=["/regex/.*"], exclude_topics=["topic2$"]
     )
 
     info = recorder.get_subscriptions_info_by_topic("/regex/topic2")
@@ -134,7 +136,7 @@ def test_exclude_overrides_include(publisher_node):
     """Exclude regex should override explicit include."""
     publisher_node.create_publisher(String, "/regex/topic3", 10)
     recorder = recorder_factory(
-        include_topics=["/regex/topic3"], exclude_regex=[r"topic3"]
+        include_topics=["/regex/topic3"], exclude_topics=["topic3$"]
     )
 
     info = recorder.get_subscriptions_info_by_topic("/regex/topic3")
@@ -148,7 +150,7 @@ def test_multiple_regex_combination(publisher_node):
     publisher_node.create_publisher(String, "/regex/a", 10)
     publisher_node.create_publisher(String, "/regex/b", 10)
     recorder = recorder_factory(
-        include_regex=[r"/regex/a", r"/regex/b"], exclude_regex=[r"/regex/b"]
+        include_topics=["a$", "b$"], exclude_topics=["/regex/b"]
     )
 
     info_a = recorder.get_subscriptions_info_by_topic("/regex/a")

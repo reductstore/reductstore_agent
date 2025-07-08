@@ -101,26 +101,13 @@ class PipelineConfig(BaseModel):
         ge=1_000,
         le=1_000_000_000,
     )
-    include_topics: list[str]
-    include_regex: list[str] = Field(default_factory=list)
-    exclude_regex: list[str] = Field(default_factory=list)
+    include_topics: list[str] = Field(default_factory=list)
+    exclude_topics: list[str] = Field(default_factory=list)
     filename_mode: FilenameMode = FilenameMode.TIMESTAMP
 
-    @field_validator("include_topics")
+    @field_validator("include_topics", "exclude_topics")
     @classmethod
-    def topics_must_be_ros_names(cls, value):
-        """Ensure topics are strings starting with '/'."""
-        if not isinstance(value, list) or not all(
-            isinstance(t, str) and t.startswith("/") for t in value
-        ):
-            raise ValueError(
-                "'include_topics' must be a list of ROS topic names starting with '/'"
-            )
-        return value
-
-    @field_validator("include_regex", "exclude_regex")
-    @classmethod
-    def validate_regex_list(cls, value):
+    def validate_topics_list(cls, value):
         """Ensure provided strings are valid regex patterns."""
         if not isinstance(value, list):
             raise ValueError("Value must be a list of regex patterns")
