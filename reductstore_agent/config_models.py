@@ -20,6 +20,7 @@
 
 """Configuration models for the reductstore_agent package."""
 
+import re
 from enum import Enum
 from tempfile import SpooledTemporaryFile
 
@@ -87,24 +88,23 @@ class PipelineConfig(BaseModel):
     )
     chunk_size_bytes: int = Field(
         1_000_000,
-        alias="chunk_size_bytes",
         ge=1_000,
         le=10_000_000,
     )
     compression: str = Field(
         "zstd",
-        alias="compression",
         pattern=r"^(none|lz4|zstd)$",
     )
-    enable_crcs: bool = Field(True, alias="enable_crcs")
+    enable_crcs: bool = Field(True)
     spool_max_size_bytes: int = Field(
         10_000_000,
-        alias="spool_max_size_bytes",
         ge=1_000,
         le=1_000_000_000,
     )
-    include_topics: list[str] = Field(..., alias="include_topics")
-    filename_mode: FilenameMode = Field(FilenameMode.TIMESTAMP, alias="filename_mode")
+    include_topics: list[str]
+    include_regex: list[str] = Field(default_factory=list)
+    exclude_regex: list[str] = Field(default_factory=list)
+    filename_mode: FilenameMode = FilenameMode.TIMESTAMP
 
     @field_validator("include_topics")
     @classmethod
@@ -116,6 +116,21 @@ class PipelineConfig(BaseModel):
             raise ValueError(
                 "'include_topics' must be a list of ROS topic names starting with '/'"
             )
+        return value
+
+    @field_validator("include_regex", "exclude_regex")
+    @classmethod
+    def validate_regex_list(cls, value):
+        """Ensure provided strings are valid regex patterns."""
+        if not isinstance(value, list):
+            raise ValueError("Value must be a list of regex patterns")
+        for pattern in value:
+            if not isinstance(pattern, str):
+                raise ValueError("Regex patterns must be strings")
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"Invalid regex pattern '{pattern}': {exc}")
         return value
 
     @field_validator(
