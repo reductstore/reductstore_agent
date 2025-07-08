@@ -179,3 +179,20 @@ def test_bucket_with_quota(reduct_client, quota_recorder):
     assert info.settings.quota_size == 100_000_000
     assert info.settings.max_block_size == 10_000_000
     assert info.settings.max_block_records == 2048
+
+
+def test_static_labels_added(reduct_client, publisher_node, publisher, labels_recorder):
+    """Records should include static labels if configured."""
+    publish_and_spin(publisher_node, publisher, labels_recorder, n_msgs=1, n_cycles=2)
+
+    async def fetch_labels(pipeline):
+        bucket = await reduct_client.get_bucket("test_bucket")
+        async for rec in bucket.query(pipeline):
+            return rec.labels
+        return None
+
+    labeled = get_or_create_event_loop().run_until_complete(fetch_labels("labeled"))
+    unlabeled = get_or_create_event_loop().run_until_complete(fetch_labels("unlabeled"))
+
+    assert labeled == {"source": "telemetry", "robot": "alpha"}
+    assert unlabeled == {}
