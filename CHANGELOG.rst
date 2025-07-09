@@ -2,8 +2,8 @@
 Changelog for package reductstore_agent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.2.0 (2025-07-09)
+------------------
 * Merge pull request `#23 <https://github.com/reductstore/ros2_reduct_agent/issues/23>`_ from reductstore/9-add-support-for-include_regex-and-exclude_regex
   Add support for include/exclude topics using regex
 * Merge pull request `#24 <https://github.com/reductstore/ros2_reduct_agent/issues/24>`_ from reductstore/12-add-support-for-static-labels-from-pipeline-config
