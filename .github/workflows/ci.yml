@@ -7,13 +7,13 @@ on:
       - "v*"
     paths-ignore:
       - README.md
-      - CHANGELOG.md
+      - CHANGELOG.rst
 
   pull_request:
     branches: [main]
     paths-ignore:
       - README.md
-      - CHANGELOG.md
+      - CHANGELOG.rst
 
 jobs:
   check-version-tag:
