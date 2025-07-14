@@ -16,3 +16,6 @@ log/
 
 # Pytest
 .coverage
+
+# Bag files
+*.mcap
