@@ -1,0 +1,15 @@
+/**/*:
+  ros__parameters:
+    storage:
+      url: "http://0.0.0.0:8383"
+      api_token: "access_token"
+      bucket: "ros_data"
+    pipelines:
+      telemetry:
+        filename_mode: "incremental"
+        include_topics: 
+          - /nissan/vehicle_speed
+          - /nissan/vehicle_steering
+        split:
+          max_duration_s: 10
+          max_size_bytes: 10000
