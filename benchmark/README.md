@@ -1,16 +1,10 @@
 # Benchmark: rosbag2 vs ros2_reduct_agent
 
----
-
 ## Goal
-
----
 
 Compare the performance of **rosbag2** and **ros2_reduct_agent** when recording data into MCAP files with Zstd compression.
 
 ## **Metrics to compare**
-
----
 
 - Average CPU usage
 - Peak RAM usage
@@ -19,28 +13,20 @@ Compare the performance of **rosbag2** and **ros2_reduct_agent** when recording 
 
 ## Dataset
 
----
-
 `test_data.mcap`
 
 ## Tools
-
----
 
 - **rosbag2**
 - **ros2_reduct_agent**
 
 ## Installation
 
----
-
 Install **ReductStore:** https://www.reduct.store/docs/getting-started
 
 Install **ros2_reduct_agent**: https://github.com/reductstore/reductstore_agent
 
 ## Usage Instructions
-
----
 
 **1. Start ReductStore in a terminal:**
 
