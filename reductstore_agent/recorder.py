@@ -376,12 +376,16 @@ class Recorder(Node):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
             if topic_name not in state.topics:
+                self.log_debug(
+                    lambda: f"Skipping message for pipeline '{pipeline_name}' "
+                    f"- topic '{topic_name}' not included."
+                )
                 continue
 
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
 
-            self.log_info(
+            self.log_debug(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
 
