@@ -30,7 +30,7 @@ import rclpy
 from mcap_ros2.writer import Writer as McapWriter
 from rclpy.impl.logging_severity import LoggingSeverity
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 from rclpy.subscription import Subscription
 from rclpy.time import Time
 from reduct import BucketSettings, Client
@@ -307,15 +307,11 @@ class Recorder(Node):
                 )
                 continue
 
-            qos = QoSProfile(depth=10)
-            qos.reliability = QoSReliabilityPolicy.BEST_EFFORT
-            qos.durability = QoSDurabilityPolicy.VOLATILE
-
             sub = self.create_subscription(
                 msg_type,
                 topic,
                 self.make_topic_callback(topic),
-                qos,
+                QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
             self.log_info(lambda: f"Subscribed to '{topic}' [{msg_type_str}]")
