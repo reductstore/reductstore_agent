@@ -216,9 +216,16 @@ class Recorder(Node):
         state.is_uploading = False
         state.timer.reset()
 
-        # Clear and re-register topics and schemas
+        # Clear topics and schemas
         state.schema_by_type.clear()
         state.schemas_by_topic.clear()
+
+        # Recompute topics for this pipeline
+        topic_types = dict(self.get_topic_names_and_types())
+        all_topics = set(topic_types)
+        state.topics = self.resolve_topics(cfg, all_topics)
+
+        # Subscribe to any new topics
         self.setup_topic_subscriptions()
 
         self.log_debug(
