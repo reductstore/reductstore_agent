@@ -25,7 +25,7 @@ setup(
         "mcap",
         "mcap-ros2-support",
         "rosbag2_py",
-        "reduct",
+        "reduct-py",
     ],
     zip_safe=True,
     maintainer="Anthony",
