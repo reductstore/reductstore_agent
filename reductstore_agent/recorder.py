@@ -70,7 +70,13 @@ class Recorder(Node):
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
         self.init_mcap_writers()
-        self.setup_topic_subscriptions()
+
+        # Delay topic subscriptions once to let discovery settle
+        def _delayed_setup():
+            self.setup_topic_subscriptions()
+            self.destroy_timer(timer)
+
+        timer = self.create_timer(2.0, _delayed_setup)
 
     def log_info(self, msg_fn):
         """Log an info message if enabled."""
@@ -163,7 +169,6 @@ class Recorder(Node):
         For each pipeline, this method creates a timer that fires after max_duration_s
         and a callback to upload the MCAP.
         """
-        rclpy.spin_once(self, timeout_sec=1.0)
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
 
@@ -259,7 +264,6 @@ class Recorder(Node):
 
     def setup_topic_subscriptions(self):
         """Subscribe to all topics referenced by any pipeline."""
-        rclpy.spin_once(self, timeout_sec=1.0)
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
         topics_to_subscribe: set[str] = set()
