@@ -268,9 +268,9 @@ class Recorder(Node):
         all_topics = set(topic_types)
         topics_to_subscribe: set[str] = set()
 
-        self.log_info(lambda: f"Discovered {len(all_topics)} topics in ROS2:")
+        self.log_debug(lambda: f"Discovered {len(all_topics)} topics in ROS2:")
         for topic, types in topic_types.items():
-            self.log_info(lambda: f"  - {topic}: {', '.join(types)}")
+            self.log_debug(lambda: f"  - {topic}: {', '.join(types)}")
 
         for cfg in self.pipeline_configs.values():
             topics_to_subscribe.update(self.resolve_topics(cfg, all_topics))
