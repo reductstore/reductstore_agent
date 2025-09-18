@@ -381,7 +381,7 @@ class Recorder(Node):
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
 
-            self.log_debug(
+            self.log_info(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )
 
