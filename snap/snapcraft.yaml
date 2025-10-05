@@ -1,0 +1,78 @@
+name: reductstore-agent
+version: 0.2.0
+summary: ROS 2 recorder that streams topics into ReductStore
+description: |
+  ReductStore Agent is a ROS 2 recorder node that streams selected topics into
+  ReductStore with configurable pipelines, compression, and labeling.
+license: MIT
+contact:
+  - info@reduct.store
+  - https://www.reduct.store/contact
+issues: https://github.com/reductstore/reductstore_agent/issues
+source-code: https://github.com/reductstore/reductstore_agent
+
+grade: devel # switch to 'stable' once it's ready
+base: core24
+confinement: devmode   # switch to 'strict' after testing
+
+plugs:
+  configuration-read:
+    interface: content
+    content: configuration-read
+    target: $SNAP_COMMON/configuration
+
+parts:
+  scripts:
+    plugin: dump
+    source: snap/local/
+    organize:
+      '*.sh': usr/bin/
+
+  sample-config:
+    plugin: dump
+    source: config
+    organize:
+      'params.yml': share/reductstore_agent/config/params.yml
+
+  agent:
+    plugin: colcon
+    source: .
+    after: [scripts, sample-config]
+    build-packages:
+      - python3-venv
+      - python3-pip
+    stage-packages:
+      - ros-jazzy-ros2cli
+      - ros-jazzy-ros2run
+      - ros-jazzy-rclpy
+      - ros-jazzy-rosbag2-py
+      - ros-jazzy-rosbag2-storage-mcap
+    override-build: |
+      set -e
+      craftctl default
+
+      # make local venv with system packages
+      python3 -m venv venv --system-site-packages
+      source venv/bin/activate
+
+      # install python deps into venv
+      pip install -U reduct-py mcap mcap-ros2-support
+
+      # copy venv site-packages into snap stage
+      cp -a venv/lib/python3.*/site-packages/* $CRAFT_PART_INSTALL/usr/lib/python3/dist-packages/
+
+apps:
+  recorder:
+    command: usr/bin/run_recorder.sh
+    daemon: simple
+    extensions: [ros2-jazzy]
+    plugs: [network, network-bind]
+    environment:
+      ROS_DOMAIN_ID: "0"
+      ROS_AUTOMATIC_DISCOVERY_RANGE: "SUBNET"
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+
+  config-help:
+    command: usr/bin/config_help.sh
+    extensions: [ros2-jazzy]

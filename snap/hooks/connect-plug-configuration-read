@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Pretty logs (disable colors if not a TTY)
+if [ -t 2 ]; then GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'; else GREEN=''; YELLOW=''; RED=''; NC=''; fi
+log_info()  { printf "%b[INFO]%b %s\n"  "$GREEN" "$NC" "$*" >&2; }
+log_warn()  { printf "%b[WARN]%b %s\n"  "$YELLOW" "$NC" "$*" >&2; }
+log_error() { printf "%b[ERROR]%b %s\n" "$RED" "$NC" "$*" >&2; }
+
+CONFIG_FILE="$SNAP_COMMON/configuration/params.yml"
+
+log_info "configuration-read connected."
+if [ -f "$CONFIG_FILE" ]; then
+  log_info "Found COS config: $CONFIG_FILE"
+else
+  log_warn "COS config not found at: $CONFIG_FILE (provider connected but file missing)"
+fi
+
+# Restart the recorder daemon so it re-reads configuration files
+SERVICE="${SNAP_INSTANCE_NAME:-$SNAP_NAME}.recorder"
+
+log_info "Restarting service: $SERVICE"
+snapctl restart "$SERVICE" || {
+  log_warn "restart failed (service may be disabled). Trying start…"
+  snapctl start "$SERVICE"
+}
