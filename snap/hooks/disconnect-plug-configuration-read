@@ -2,7 +2,11 @@
 set -euo pipefail
 
 if [ -t 2 ]; then YELLOW='\033[1;33m'; NC='\033[0m'; else YELLOW=''; NC=''; fi
-echo -e "${YELLOW}[WARN] configuration-read disconnected; falling back to user/system config.${NC}" >&2
+warn() { printf "%bWARN%b  %s\n" "$YELLOW" "$NC" "$*" >&2; }
+
+warn "configuration-read plug disconnected; falling back to user/system config"
 
 SERVICE="${SNAP_INSTANCE_NAME:-$SNAP_NAME}.recorder"
-snapctl restart "$SERVICE" || true
+if ! snapctl restart "$SERVICE"; then
+  warn "restart failed (service may be disabled)"
+fi

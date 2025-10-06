@@ -1,63 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ---------- Logging helpers ----------
-if [ -t 1 ]; then
-  GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+if [ -t 2 ]; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 else
-  GREEN=''; YELLOW=''; RED=''; NC=''
+  RED=''; GREEN=''; YELLOW=''; NC=''
 fi
-log_info()  { printf "%b[INFO]%b %s\n"  "$GREEN" "$NC" "$*"; }
-log_warn()  { printf "%b[WARN]%b %s\n"  "$YELLOW" "$NC" "$*"; }
-log_error() { printf "%b[ERROR]%b %s\n" "$RED" "$NC" "$*"; }
+info()  { printf "%bINFO%b  %s\n"  "$GREEN" "$NC" "$*" >&2; }
+warn()  { printf "%bWARN%b  %s\n"  "$YELLOW" "$NC" "$*" >&2; }
+error() { printf "%bERROR%b %s\n" "$RED" "$NC" "$*" >&2; }
 
-# ---------- Paths ----------
-CONFIG_BASENAME="params.yml"
-DEFAULT_CONFIG="$SNAP/share/reductstore_agent/config/$CONFIG_BASENAME"
-USER_CONFIG="$SNAP_USER_COMMON/$CONFIG_BASENAME"
-SYSTEM_CONFIG="$SNAP_COMMON/$CONFIG_BASENAME"
-COS_CONFIG="$SNAP_COMMON/configuration/$CONFIG_BASENAME"
+CONFIG_NAME="params.yml"
+DEFAULT_CONFIG="$SNAP/share/reductstore_agent/config/$CONFIG_NAME"
+SYSTEM_CONFIG="$SNAP_COMMON/$CONFIG_NAME"
+COS_CONFIG="$SNAP_COMMON/configuration/$CONFIG_NAME"
 
-# ---------- Ensure dirs ----------
-install -d -m 0755 "$SNAP_COMMON"
-install -d -m 0755 "$SNAP_COMMON/configuration"
+mkdir -p "$SNAP_COMMON" "$SNAP_COMMON/configuration"
 
-# ---------- Check bundled sample ----------
 if [ ! -f "$DEFAULT_CONFIG" ]; then
-  log_error "Sample config missing at $DEFAULT_CONFIG (packaging error)"
+  error "Bundled sample missing: $DEFAULT_CONFIG"
   exit 1
 fi
 
-# ---------- Decide which config to use/seed ----------
 if [ -f "$COS_CONFIG" ]; then
-  log_info "COS-provided config detected: $COS_CONFIG"
-elif [ -f "$USER_CONFIG" ]; then
-  log_info "User config already present: $USER_CONFIG"
+  info "COS config detected: $COS_CONFIG"
 elif [ -f "$SYSTEM_CONFIG" ]; then
-  log_info "System config already present: $SYSTEM_CONFIG"
+  info "System config already exists: $SYSTEM_CONFIG"
 else
-  install -D -m 0644 "$DEFAULT_CONFIG" "$SYSTEM_CONFIG"
-  log_info "Seeded sample config → $SYSTEM_CONFIG"
-  log_info "Edit this file or create $USER_CONFIG to override."
+  cp "$DEFAULT_CONFIG" "$SYSTEM_CONFIG"
+  chmod 0644 "$SYSTEM_CONFIG"
+  info "Seeded system config: $SYSTEM_CONFIG"
 fi
 
-# ---------- Epilogue ----------
-cat <<'EOF'
-
-ReductStore Agent installation complete.
-----------------------------------------
-
-Configuration files:
-  - COS config (if connected): $SNAP_COMMON/configuration/params.yml
-  - User config (preferred):   $SNAP_USER_COMMON/params.yml
-  - System config:             $SNAP_COMMON/params.yml
-
-Bundled sample was copied to system config if none existed.
-
-Run the agent:
-  reductstore-agent.recorder
-
-Get config help:
-  reductstore-agent.config-help
-
-EOF
+info "Install hook complete"

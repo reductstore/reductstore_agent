@@ -30,7 +30,7 @@ import rclpy
 from mcap_ros2.writer import Writer as McapWriter
 from rclpy.impl.logging_severity import LoggingSeverity
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.qos import QoSProfile
 from rclpy.subscription import Subscription
 from rclpy.time import Time
 from reduct import BucketSettings, Client
@@ -71,12 +71,17 @@ class Recorder(Node):
         self.subscribers: list[Subscription] = []
         self.init_mcap_writers()
 
-        # Delay topic subscriptions once to let discovery settle
+        # Delay topic subscriptions
+        delay = self.load_delay_config()
+        if delay <= 0.0:
+            self.setup_topic_subscriptions()
+            return
+
         def _delayed_setup():
             self.setup_topic_subscriptions()
             self.destroy_timer(timer)
 
-        timer = self.create_timer(2.0, _delayed_setup)
+        timer = self.create_timer(delay, _delayed_setup)
 
     def log_info(self, msg_fn):
         """Log an info message if enabled."""
@@ -146,6 +151,12 @@ class Recorder(Node):
         for name, cfg in pipelines_raw.items():
             pipelines[name] = PipelineConfig(**cfg)
         return pipelines
+
+    def load_delay_config(self) -> float:
+        """Load subscription delay parameter."""
+        if self.has_parameter("subscription_delay_s"):
+            return float(self.get_parameter("subscription_delay_s").value)
+        return 2.0  # Default delay
 
     async def init_reduct_bucket(self):
         """Initialize or create ReductStore bucket."""
@@ -313,17 +324,12 @@ class Recorder(Node):
                     f"Cannot import '{msg_type_str}' ({e})"
                 )
                 continue
-            
-            qos = QoSProfile(
-                depth=10, 
-                reliability=ReliabilityPolicy.RELIABLE, 
-                durability=DurabilityPolicy.VOLATILE
-            )
+
             sub = self.create_subscription(
                 msg_type,
                 topic,
                 self.make_topic_callback(topic),
-                qos,
+                QoSProfile(depth=10),
             )
             self.subscribers.append(sub)
             self.log_info(lambda: f"Subscribed to '{topic}' [{msg_type_str}]")

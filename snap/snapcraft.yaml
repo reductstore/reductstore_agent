@@ -32,7 +32,7 @@ parts:
     plugin: dump
     source: config
     organize:
-      'params.yml': share/reductstore_agent/config/params.yml
+      'default.yml': share/reductstore_agent/config/params.yml
 
   agent:
     plugin: colcon
@@ -56,7 +56,7 @@ parts:
       source venv/bin/activate
 
       # install python deps into venv
-      pip install -U reduct-py mcap mcap-ros2-support
+      pip install -U reduct-py mcap mcap-ros2-support numpy
 
       # copy venv site-packages into snap stage
       cp -a venv/lib/python3.*/site-packages/* $CRAFT_PART_INSTALL/usr/lib/python3/dist-packages/
@@ -70,6 +70,7 @@ apps:
     environment:
       ROS_DOMAIN_ID: "0"
       ROS_AUTOMATIC_DISCOVERY_RANGE: "SUBNET"
+      RCUTILS_COLORIZED_OUTPUT: "1"
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
 

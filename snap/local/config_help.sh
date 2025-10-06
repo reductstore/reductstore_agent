@@ -1,64 +1,70 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cat << 'EOF'
+if [ -t 2 ]; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; NC=''
+fi
+info()  { printf "%bINFO%b  %s\n"  "$GREEN" "$NC" "$*" >&2; }
+warn()  { printf "%bWARN%b  %s\n"  "$YELLOW" "$NC" "$*" >&2; }
+error() { printf "%bERROR%b %s\n" "$RED" "$NC" "$*" >&2; }
+
+CONFIG_NAME="params.yml"
+DEFAULT_CONFIG="$SNAP/share/reductstore_agent/config/$CONFIG_NAME"
+COS_CONFIG="$SNAP_COMMON/configuration/$CONFIG_NAME"
+USER_CONFIG="$SNAP_USER_COMMON/$CONFIG_NAME"
+SYSTEM_CONFIG="$SNAP_COMMON/$CONFIG_NAME"
+
+cat <<EOF
 ReductStore Agent Configuration Help
 ====================================
 
-Configuration file locations (checked in this order at runtime):
-1) COS configuration (if connected):
-   $SNAP_COMMON/configuration/params.yml
-2) User configuration (recommended):
-   $SNAP_USER_COMMON/params.yml
-3) System configuration:
-   $SNAP_COMMON/params.yml
-4) Bundled sample (read-only):
-   $SNAP/share/reductstore_agent/config/params.yml
+Configuration search order:
+  1) COS config       $COS_CONFIG
+  2) User config      $USER_CONFIG
+  3) System config    $SYSTEM_CONFIG
+  4) Bundled default  $DEFAULT_CONFIG
 
 Quick setup (user config):
   mkdir -p "$SNAP_USER_COMMON"
-  cp "$SNAP/share/reductstore_agent/config/params.yml" "$SNAP_USER_COMMON/params.yml"
-  nano "$SNAP_USER_COMMON/params.yml"
+  cp "$DEFAULT_CONFIG" "$USER_CONFIG"
+  nano "$USER_CONFIG"
 
 Run the recorder:
   reductstore-agent.recorder
 
-More info:
+Project info:
   https://github.com/reductstore/reductstore_agent
 
-Current paths:
+Current environment:
+  SNAP             = ${SNAP:-not set}
+  SNAP_USER_COMMON = ${SNAP_USER_COMMON:-not set}
+  SNAP_COMMON      = ${SNAP_COMMON:-not set}
+
+Config file status:
 EOF
 
-echo "SNAP: ${SNAP:-not set}"
-echo "SNAP_USER_COMMON: ${SNAP_USER_COMMON:-not set}"
-echo "SNAP_COMMON: ${SNAP_COMMON:-not set}"
-
-# Checks
-DEFAULT_CONFIG="$SNAP/share/reductstore_agent/config/params.yml"
-COS_CONFIG="$SNAP_COMMON/configuration/params.yml"
-USER_CONFIG="$SNAP_USER_COMMON/params.yml"
-SYSTEM_CONFIG="$SNAP_COMMON/params.yml"
-
-if [ -f "$DEFAULT_CONFIG" ]; then
-  echo "✓ Default config found: $DEFAULT_CONFIG"
-else
-  echo "✗ Default config missing: $DEFAULT_CONFIG"
-fi
-
 if [ -f "$COS_CONFIG" ]; then
-  echo "✓ COS config found: $COS_CONFIG"
+  info "COS config found: $COS_CONFIG"
 else
-  echo "○ COS config not found: $COS_CONFIG"
+  warn "COS config not found: $COS_CONFIG"
 fi
 
 if [ -f "$USER_CONFIG" ]; then
-  echo "✓ User config found: $USER_CONFIG"
+  info "User config found: $USER_CONFIG"
 else
-  echo "○ User config not found: $USER_CONFIG (you can create it)"
+  warn "User config not found: $USER_CONFIG"
 fi
 
 if [ -f "$SYSTEM_CONFIG" ]; then
-  echo "✓ System config found: $SYSTEM_CONFIG"
+  info "System config found: $SYSTEM_CONFIG"
 else
-  echo "○ System config not found: $SYSTEM_CONFIG"
+  warn "System config not found: $SYSTEM_CONFIG"
+fi
+
+if [ -f "$DEFAULT_CONFIG" ]; then
+  info "Default bundled config available: $DEFAULT_CONFIG"
+else
+  error "Default bundled config missing: $DEFAULT_CONFIG"
 fi

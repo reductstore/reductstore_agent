@@ -55,10 +55,20 @@ See the [Configuration](#configuration) section for details on available paramet
 
 ## Installing
 
-Build and run in a ROS 2 workspace:
+This package requires Python dependencies (`reduct-py`, `mcap`, `mcap-ros2-support`) that are **not provided by ROS 2**.
+To keep them isolated while still allowing `colcon` and `ros2` (installed system-wide) to work, we create a virtual environment with:
 
 ```bash
-# 1. Clone your repo and enter the workspace
+python3 -m venv .venv --system-site-packages
+```
+
+The `--system-site-packages` flag is important because it lets the venv access ROS’s system-installed Python packages (`rclpy`, `rosbag2_py`, etc.).
+Without it, `colcon` and ROS Python APIs won’t be visible inside the venv, and `ros2 run` would fail to find your node.
+
+### Build and Run
+
+```bash
+# 1. Create a workspace and clone the repository
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
 git clone https://github.com/reductstore/reductstore_agent.git
@@ -67,13 +77,22 @@ cd ..
 # 2. Install system dependencies
 rosdep install --from-paths src --ignore-src -r -y
 
-# 3. Build your package
-colcon build --packages-select reductstore_agent
+# 3. Create and activate the virtual environment
+python3 -m venv .venv --system-site-packages
+source .venv/bin/activate
 
-# 4. Source the workspace and run your node
-source install/local_setup.bash
-ros2 run reductstore_agent recorder --ros-args --params-file ./config.yaml
+# 4. Install Python dependencies
+pip install -U reduct-py mcap mcap-ros2-support
+
+# 5. Build the package with colcon using the venv Python
+python -m colcon build --symlink-install
+
+# 6. Source the workspace and run the node
+source install/setup.bash
+ros2 run reductstore_agent recorder --ros-args --params-file ./config/params.yml
 ```
+
+There is also a [Snap package](#snap-package) available for easier installation and updates.
 
 ## Configuration
 
@@ -127,8 +146,25 @@ Each pipeline supports the following parameters:
   * `"timestamp"` *(default)* — Use first topic timestamp for filenames.
   * `"incremental"` — Use incrementing numbers (0, 1, 2, ...) for filenames.
 
+
+## Snap Package
+
+This snap provides the **ReductStore Agent ROS 2 node**, which records ROS 2 topics and streams them into ReductStore.
+
+### Build and Install
+
+```bash
+# Install snapcraft if not already installed
+sudo snap install snapcraft --classic
+
+# Build the snap
+snapcraft pack
+
+# Install locally (for testing)
+sudo snap install --dangerous reductstore-agent_*.snap
+```
+
 ## Links
 
 * ReductStore Docs: [https://www.reduct.store/docs/getting-started](https://www.reduct.store/docs/getting-started)
 * Ubuntu Core Robotics Telemetry: [https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry](https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry)
-
