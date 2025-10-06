@@ -96,7 +96,7 @@ class Recorder(Node):
     def log_warn(self, msg_fn):
         """Log a warning message if enabled."""
         if self.logger.is_enabled_for(LoggingSeverity.WARN):
-            self.logger.warn(msg_fn())
+            self.logger.warning(msg_fn())
 
     def load_storage_config(self) -> StorageConfig:
         """Parse and validate storage parameters."""
