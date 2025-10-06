@@ -1,0 +1,15 @@
+/**/*:
+  ros__parameters:
+    storage:
+      url: "http://127.0.0.1:8383"
+      api_token: "reductstore"
+      bucket: "rosout"
+      quota_type: "FIFO"
+      quota_size: "1GB"
+    pipelines:
+      rosout:
+        filename_mode: "timestamp"
+        include_topics:
+          - "/rosout"
+        split:
+          max_duration_s: 60

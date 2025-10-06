@@ -31,6 +31,7 @@ def recorder_factory(include_topics=None, exclude_topics=None):
     include_topics = include_topics or []
     exclude_topics = exclude_topics or []
     params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),

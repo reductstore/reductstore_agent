@@ -70,7 +70,18 @@ class Recorder(Node):
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
         self.init_mcap_writers()
-        self.setup_topic_subscriptions()
+
+        # Delay topic subscriptions
+        delay = self.load_delay_config()
+        if delay <= 0.0:
+            self.setup_topic_subscriptions()
+            return
+
+        def _delayed_setup():
+            self.setup_topic_subscriptions()
+            self.destroy_timer(timer)
+
+        timer = self.create_timer(delay, _delayed_setup)
 
     def log_info(self, msg_fn):
         """Log an info message if enabled."""
@@ -85,7 +96,7 @@ class Recorder(Node):
     def log_warn(self, msg_fn):
         """Log a warning message if enabled."""
         if self.logger.is_enabled_for(LoggingSeverity.WARN):
-            self.logger.warn(msg_fn())
+            self.logger.warning(msg_fn())
 
     def load_storage_config(self) -> StorageConfig:
         """Parse and validate storage parameters."""
@@ -140,6 +151,12 @@ class Recorder(Node):
         for name, cfg in pipelines_raw.items():
             pipelines[name] = PipelineConfig(**cfg)
         return pipelines
+
+    def load_delay_config(self) -> float:
+        """Load subscription delay parameter."""
+        if self.has_parameter("subscription_delay_s"):
+            return float(self.get_parameter("subscription_delay_s").value)
+        return 2.0  # Default delay
 
     async def init_reduct_bucket(self):
         """Initialize or create ReductStore bucket."""
@@ -210,9 +227,16 @@ class Recorder(Node):
         state.is_uploading = False
         state.timer.reset()
 
-        # Clear and re-register topics and schemas
+        # Clear topics and schemas
         state.schema_by_type.clear()
         state.schemas_by_topic.clear()
+
+        # Recompute topics for this pipeline
+        topic_types = dict(self.get_topic_names_and_types())
+        all_topics = set(topic_types)
+        state.topics = self.resolve_topics(cfg, all_topics)
+
+        # Subscribe to any new topics
         self.setup_topic_subscriptions()
 
         self.log_debug(
@@ -261,6 +285,10 @@ class Recorder(Node):
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
         topics_to_subscribe: set[str] = set()
+
+        self.log_debug(lambda: f"Discovered {len(all_topics)} topics in ROS2:")
+        for topic, types in topic_types.items():
+            self.log_debug(lambda: f"  - {topic}: {', '.join(types)}")
 
         for cfg in self.pipeline_configs.values():
             topics_to_subscribe.update(self.resolve_topics(cfg, all_topics))
@@ -361,6 +389,10 @@ class Recorder(Node):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
             if topic_name not in state.topics:
+                self.log_debug(
+                    lambda: f"Skipping message for pipeline '{pipeline_name}' "
+                    f"- topic '{topic_name}' not included."
+                )
                 continue
 
             if state.first_timestamp is None:

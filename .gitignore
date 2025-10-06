@@ -5,6 +5,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.eggs/
+*.egg-info/
 
 # Packaging
 install/
@@ -16,3 +19,12 @@ log/
 
 # Pytest
 .coverage
+
+# Snap build
+*.snap  
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/

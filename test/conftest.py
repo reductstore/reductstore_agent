@@ -78,6 +78,7 @@ def publisher(publisher_node: Node) -> Publisher:
 def basic_recorder() -> Generator[Recorder, None, None]:
     """Record every 1s and upload MCAP file with /test/topic."""
     params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
@@ -106,6 +107,7 @@ def basic_recorder() -> Generator[Recorder, None, None]:
 def quota_recorder() -> Generator[Recorder, None, None]:
     """Record with quota settings."""
     params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
@@ -139,6 +141,7 @@ def quota_recorder() -> Generator[Recorder, None, None]:
 def low_chunk_recorder() -> Generator[Recorder, None, None]:
     """Record with low chunk size and no compression for large message test."""
     params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
@@ -177,6 +180,7 @@ def low_chunk_recorder() -> Generator[Recorder, None, None]:
 def parallel_recorder() -> Generator[Recorder, None, None]:
     """Record with two parallel pipelines: /test/topic and /rosout."""
     params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
@@ -222,6 +226,7 @@ def parallel_recorder() -> Generator[Recorder, None, None]:
 def labels_recorder() -> Generator[Recorder, None, None]:
     """Record with static labels and two pipelines: labeled and unlabeled."""
     params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
         Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
