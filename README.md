@@ -164,6 +164,12 @@ snapcraft pack
 sudo snap install --dangerous reductstore-agent_*.snap
 ```
 
+Or install directly from the store (edge channel for now):
+
+```bash
+sudo snap install reductstore-agent --edge
+```
+
 ## Links
 
 * ReductStore Docs: [https://www.reduct.store/docs/getting-started](https://www.reduct.store/docs/getting-started)
