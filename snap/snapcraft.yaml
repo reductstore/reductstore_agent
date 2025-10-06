@@ -11,9 +11,9 @@ contact:
 issues: https://github.com/reductstore/reductstore_agent/issues
 source-code: https://github.com/reductstore/reductstore_agent
 
-grade: devel # switch to 'stable' once it's ready
 base: core24
-confinement: devmode   # switch to 'strict' after testing
+confinement: strict
+grade: devel
 
 plugs:
   configuration-read:
