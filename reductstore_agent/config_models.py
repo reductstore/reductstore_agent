@@ -107,6 +107,17 @@ class PipelineConfig(BaseModel):
     static_labels: dict[str, str] = Field(default_factory=dict)
     filename_mode: FilenameMode = FilenameMode.TIMESTAMP
 
+    downsampling_mode: str = Field(
+        "none",
+        pattern=r"^(none|max_rate|stride)$"
+    )
+    max_rate_hz: float | None = Field(
+        None, ge=0.0
+    )
+    stride_n: int | None = Field(
+        None, ge=2
+    )
+
     @field_validator("include_topics", "exclude_topics")
     @classmethod
     def validate_topics_list(cls, value):
@@ -184,3 +195,5 @@ class PipelineState(BaseModel):
     timer: Timer | None = None
     current_size: int = 0
     is_uploading: bool = False
+    msg_counter: int = 0
+    last_recorded_timestamp: int | None = None
