@@ -256,7 +256,39 @@ class Recorder(Node):
             compression=compression,
             enable_crcs=enable_crcs,
         )
-
+    
+    # Downsampling Gate Function
+    def down_sampling(cfg, state, timestamp):
+        if cfg.downsampling_mode == "stride":
+            if cfg.stride_n is None or cfg.stride_n < 2:
+                state.get_logger().error(
+                    f"Pipeline '{state.pipeline_name}' in 'stride' mode has invalid "
+                    f"or missing stride_n: {cfg.stride_n}. Skipping messages."
+                )
+                return True
+            
+            state.msg_counter += 1
+            return (state.msg_counter % cfg.stride_n) == 0
+        
+        if cfg.downsampling_mode == "max_rate":
+            if cfg.max_rate_hz is None or cfg.max_rate_hz <= 0.0:
+                state.get_logger().error(
+                    f"Pipeline '{state.pipeline_name}' in 'max_rate' mode has invalid "
+                    f"or missing max_rate_hz: {cfg.max_rate_hz}. Skipping messages."
+                )
+                return True
+            max_rate_period = 1e9/cfg.max_rate_hz
+            if (
+                state.last_recorded_timestamp is None
+                or (timestamp - state.last_recorded_timestamp) >= max_rate_period
+            ):
+                state.last_recorded_timestamp = timestamp
+                return False
+            else:
+                return True  # skip message if message is in waiting period
+            
+        return False
+    
     #
     # Topic Subscription
     #
@@ -381,14 +413,14 @@ class Recorder(Node):
             self.warned_topics.add(topic_name)
 
         return self.get_clock().now().nanoseconds
-
     #
     # Message Processing
     #
+
     def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
-            cfg = self.pipeline_configs[pipeline_name] # get pipeconfig to access msg_counter and stride_n
+            cfg = self.pipeline_configs[pipeline_name]
             if topic_name not in state.topics:
                 self.log_debug(
                     lambda: f"Skipping message for pipeline '{pipeline_name}' "
@@ -399,29 +431,12 @@ class Recorder(Node):
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
             
-            if cfg.downsampling_mode == "stride":
-                state.msg_counter += 1
-                if cfg.stride_n is None or cfg.stride_n < 2:
-                    self.get_logger().error(
-                        f"Pipeline '{pipeline_name}' in 'stride' mode has invalid or missing stride_n: {cfg.stride_n}. Skipping messages."
+            if self.down_sampling(cfg, state, publish_time):
+                self.log_debug(
+                    lambda: f"Skipping message for pipeline '{pipeline_name}' "
+                    f"- downsampling mode '{cfg.downsampling_mode}'."
                 )
-                    continue
-                if state.msg_counter % cfg.stride_n != 0:
-                    continue # skipping message 
-            
-            elif cfg.downsampling_mode == "max_rate":
-                if cfg.max_rate_hz is None or cfg.max_rate_hz <= 0.0:
-                    self.get_logger().error(
-                    f"Pipeline '{pipeline_name}' in 'max_rate' mode has invalid or missing max_rate_hz: {cfg.max_rate_hz}. Skipping messages."
-                )
-                    continue
-
-                max_rate_period = 1e9/cfg.max_rate_hz
-                if state.last_recorded_timestamp is None or (publish_time - state.last_recorded_timestamp) >= max_rate_period:
-                    state.last_recorded_timestamp = publish_time
-                else:
-                    continue # skip message if message is in waiting period
-
+                continue  # skip the message
 
             self.log_debug(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
