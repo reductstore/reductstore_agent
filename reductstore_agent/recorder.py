@@ -399,14 +399,13 @@ class Recorder(Node):
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
             
-                if cfg.downsampling_mode == "stride":
-                    state.msg_counter += 1
+            if cfg.downsampling_mode == "stride":
+                state.msg_counter += 1
                 if cfg.stride_n is None or cfg.stride_n < 2:
                     self.get_logger().error(
                         f"Pipeline '{pipeline_name}' in 'stride' mode has invalid or missing stride_n: {cfg.stride_n}. Skipping messages."
                 )
                     continue
-
                 if state.msg_counter % cfg.stride_n != 0:
                     continue # skipping message 
             
