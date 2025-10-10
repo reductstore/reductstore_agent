@@ -268,7 +268,7 @@ class Recorder(Node):
                 return True
             
             state.msg_counter += 1
-            return (state.msg_counter % cfg.stride_n) == 0
+            return not ((state.msg_counter % cfg.stride_n) == 0)
         
         if cfg.downsampling_mode == "max_rate":
             if cfg.max_rate_hz is None or cfg.max_rate_hz <= 0.0:
