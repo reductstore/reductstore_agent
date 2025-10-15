@@ -256,7 +256,7 @@ class Recorder(Node):
             compression=compression,
             enable_crcs=enable_crcs,
         )
-    
+
     # Downsampling Gate Function
     @staticmethod
     def down_sampling(cfg, state, timestamp) -> bool:
@@ -268,10 +268,10 @@ class Recorder(Node):
                     f"or missing stride_n: {cfg.stride_n}. Skipping messages."
                 )
                 return True
-            
+
             state.msg_counter += 1
             return not ((state.msg_counter % cfg.stride_n) == 0)
-        
+
         if cfg.downsampling_mode == "max_rate":
             if cfg.max_rate_hz is None or cfg.max_rate_hz <= 0.0:
                 state.get_logger().error(
@@ -279,7 +279,7 @@ class Recorder(Node):
                     f"or missing max_rate_hz: {cfg.max_rate_hz}. Skipping messages."
                 )
                 return True
-            max_rate_period = 1e9/cfg.max_rate_hz
+            max_rate_period = 1e9 / cfg.max_rate_hz
             if (
                 state.last_recorded_timestamp is None
                 or (timestamp - state.last_recorded_timestamp) >= max_rate_period
@@ -288,9 +288,9 @@ class Recorder(Node):
                 return False
             else:
                 return True  # skip message if message is in waiting period
-            
+
         return False
-    
+
     #
     # Topic Subscription
     #
@@ -415,6 +415,7 @@ class Recorder(Node):
             self.warned_topics.add(topic_name)
 
         return self.get_clock().now().nanoseconds
+
     #
     # Message Processing
     #
@@ -432,7 +433,7 @@ class Recorder(Node):
 
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
-            
+
             if self.down_sampling(cfg, state, publish_time):
                 self.log_debug(
                     lambda: f"Skipping message for pipeline '{pipeline_name}' "

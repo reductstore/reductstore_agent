@@ -160,9 +160,7 @@ def test_recorder_valid_stride_params():
     """Test that the Recorder node can be created with downsampling mode 'stride'."""
     node = Recorder(
         parameter_overrides=as_overrides(
-            storage_params(),
-            pipeline_params(),
-            downsampling_params_stride()
+            storage_params(), pipeline_params(), downsampling_params_stride()
         )
     )
     assert node.get_name() == "recorder"
@@ -173,9 +171,7 @@ def test_recorder_valid_max_hz_params():
     """Test that the Recorder node can be created with downsampling mode 'max_rate'."""
     node = Recorder(
         parameter_overrides=as_overrides(
-            storage_params(),
-            pipeline_params(),
-            downsampling_params_max_rate()
+            storage_params(), pipeline_params(), downsampling_params_max_rate()
         )
     )
     assert node.get_name() == "recorder"
@@ -438,19 +434,24 @@ def test_recorder_invalid_max_block_records():
 
 
 DOWN_SAMPLING_INVALID_CASES = [
-    ("pipelines.test.stride_n",
-     Parameter.Type.INTEGER,
-     1,
-     "greater than or equal to 2"),
-     
-    ("pipelines.test.max_rate_hz",
-     Parameter.Type.DOUBLE,
-     -5.0,
-     r"max_rate_hz\n  Input should be greater than or equal to 0"),
-    ("pipelines.test.downsampling_mode",
-     Parameter.Type.STRING,
-     "invalid_mode",
-     "String should match pattern '.*(none|max_rate|stride).*'"),
+    (
+        "pipelines.test.stride_n",
+        Parameter.Type.INTEGER,
+        1,
+        "greater than or equal to 2",
+    ),
+    (
+        "pipelines.test.max_rate_hz",
+        Parameter.Type.DOUBLE,
+        -5.0,
+        r"max_rate_hz\n  Input should be greater than or equal to 0",
+    ),
+    (
+        "pipelines.test.downsampling_mode",
+        Parameter.Type.STRING,
+        "invalid_mode",
+        "String should match pattern '.*(none|max_rate|stride).*'",
+    ),
 ]
 
 
@@ -459,12 +460,10 @@ DOWN_SAMPLING_INVALID_CASES = [
     DOWN_SAMPLING_INVALID_CASES,
 )
 def test_recorder_invalid_downsampling_params(
-        param_name,
-        param_type,
-        invalid_value,
-        err_msg):
+    param_name, param_type, invalid_value, err_msg
+):
     """
-    Test that the Recorder Node raises a ValueError
+    Test that the Recorder Node raises a ValueError,
     for invalid downsampling config.
     """
 

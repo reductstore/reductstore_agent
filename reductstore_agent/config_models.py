@@ -107,16 +107,9 @@ class PipelineConfig(BaseModel):
     static_labels: dict[str, str] = Field(default_factory=dict)
     filename_mode: FilenameMode = FilenameMode.TIMESTAMP
 
-    downsampling_mode: str = Field(
-        "none",
-        pattern=r"^(none|max_rate|stride)$"
-    )
-    max_rate_hz: float | None = Field(
-        None, ge=0.0
-    )
-    stride_n: int | None = Field(
-        None, ge=2
-    )
+    downsampling_mode: str = Field("none", pattern=r"^(none|max_rate|stride)$")
+    max_rate_hz: float | None = Field(None, ge=0.0)
+    stride_n: int | None = Field(None, ge=2)
 
     @field_validator("include_topics", "exclude_topics")
     @classmethod
