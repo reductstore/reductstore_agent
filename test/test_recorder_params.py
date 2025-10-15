@@ -463,7 +463,6 @@ def test_recorder_invalid_downsampling_params(
     param_name, param_type, invalid_value, err_msg
 ):
     """Test that Recorder raises Error for invalid config."""
-
     invalid_param = Parameter(param_name, param_type, invalid_value)
     all_pipeline_params = pipeline_params() + [invalid_param]
 

@@ -31,13 +31,11 @@ from reductstore_agent.recorder import Recorder
 @pytest.fixture
 def downsampling_func_accessor():
     """Get the callable static down_sampling method."""
-
     return Recorder.down_sampling
 
 
 def test_downsampling_stride_logic(downsampling_func_accessor):
     """Test that the downsampling_mode max_rate logic is working."""
-
     cfg = SimpleNamespace(downsampling_mode="stride", stride_n=5, max_rate_hz=None)
     state = SimpleNamespace(msg_counter=0, pipeline_name="test", get_logger=MagicMock())
 
@@ -53,8 +51,7 @@ def test_downsampling_stride_logic(downsampling_func_accessor):
 
 
 def test_downsampling_max_hz_logic(downsampling_func_accessor):
-    """Test that the downsampling_mode max_rate logic is working"""
-
+    """Test that the downsampling_mode max_rate logic is working."""
     PERIOD_NS = 100_000_000
     START_TIME = 1_000_000_000
 
