@@ -20,29 +20,23 @@
 
 """Test Recorder node downsampling logic."""
 
-import pytest
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 from reductstore_agent.recorder import Recorder
 
 
 @pytest.fixture
 def downsampling_func_accessor():
-    """
-    Return a callable version of the static down_sampling method,
-    from the Recorder class.
-    """
+    """Get the callable static down_sampling method."""
 
     return Recorder.down_sampling
 
 
 def test_downsampling_stride_logic(downsampling_func_accessor):
-    """
-    Tests the down_sampling function's stride logic (N=5),
-    verifying KEEP (False) and SKIP (True) cycles.
-    """
+    """Test that the downsampling_mode max_rate logic is working."""
 
     cfg = SimpleNamespace(downsampling_mode="stride", stride_n=5, max_rate_hz=None)
     state = SimpleNamespace(msg_counter=0, pipeline_name="test", get_logger=MagicMock())
