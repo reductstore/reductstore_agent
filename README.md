@@ -146,6 +146,12 @@ Each pipeline supports the following parameters:
   * `"timestamp"` *(default)* — Use first topic timestamp for filenames.
   * `"incremental"` — Use incrementing numbers (0, 1, 2, ...) for filenames.
 
+* **`downsample_mode`**: Method discards messages. Choose one of:
+
+  * `"none"` *(default)* 
+  * `"stride_n"` — Required if downsampling_mode is *"stride"*, only records every *nth* message. Must be >= 2.
+  * `"max_rate_hz"` — Required if downsampling_mode is *"max_rate"*, specifies maximum frequency of recorded messages.
+
 
 ## Snap Package
 

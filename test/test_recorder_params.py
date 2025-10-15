@@ -63,7 +63,50 @@ def pipeline_params():
     ]
 
 
-def as_overrides(storage_dict, pipeline_params=None):
+def downsampling_params_stride():
+    """Return a list of valid downsampling parameters for 'stride'."""
+    return [
+        Parameter(
+            "pipelines.test.downsampling_mode",
+            Parameter.Type.STRING,
+            "stride",
+        ),
+        Parameter(
+            "pipelines.test.stride_n",
+            Parameter.Type.INTEGER,
+            5,
+        ),
+    ]
+
+
+def downsampling_params_max_rate():
+    """Return a list of valid downsampling parameters for 'max_rate'."""
+    return [
+        Parameter(
+            "pipelines.test.downsampling_mode",
+            Parameter.Type.STRING,
+            "max_rate",
+        ),
+        Parameter(
+            "pipelines.test.max_rate_hz",
+            Parameter.Type.DOUBLE,
+            10.0,
+        ),
+    ]
+
+
+def downsampling_params_none():
+    """Return a list of valid downsampling parameters for 'none'."""
+    return [
+        Parameter(
+            "pipelines.test.downsampling_mode",
+            Parameter.Type.STRING,
+            "none",
+        ),
+    ]
+
+
+def as_overrides(storage_dict, pipeline_params=None, downsampling_params=None):
     """Convert storage parameters and combine with pipeline parameters."""
     overrides = []
     for key, value in storage_dict.items():
@@ -77,6 +120,10 @@ def as_overrides(storage_dict, pipeline_params=None):
     if pipeline_params:
         for param in pipeline_params:
             overrides.append(param)
+    if downsampling_params:
+        for param in downsampling_params:
+            overrides.append(param)
+
     return overrides
 
 
@@ -91,6 +138,45 @@ def test_recorder_valid_pipeline_params():
     """Test that the Recorder node can be created with valid pipeline parameters."""
     node = Recorder(
         parameter_overrides=as_overrides(storage_params(), pipeline_params())
+    )
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
+def test_recorder_valid_none_params():
+    """Test that the Recorder node can be created with downsampling mode 'none'."""
+    node = Recorder(
+        parameter_overrides=as_overrides(
+            storage_params(),
+            pipeline_params(),
+            downsampling_params_none(),
+        )
+    )
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
+def test_recorder_valid_stride_params():
+    """Test that the Recorder node can be created with downsampling mode 'stride'."""
+    node = Recorder(
+        parameter_overrides=as_overrides(
+            storage_params(),
+            pipeline_params(),
+            downsampling_params_stride()
+        )
+    )
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
+def test_recorder_valid_max_hz_params():
+    """Test that the Recorder node can be created with downsampling mode 'max_rate'."""
+    node = Recorder(
+        parameter_overrides=as_overrides(
+            storage_params(),
+            pipeline_params(),
+            downsampling_params_max_rate()
+        )
     )
     assert node.get_name() == "recorder"
     node.destroy_node()
@@ -349,3 +435,43 @@ def test_recorder_invalid_max_block_records():
     storage_dict["max_block_records"] = "invalid_size"
     with pytest.raises(ValueError, match="should be a valid integer"):
         Recorder(parameter_overrides=as_overrides(storage_dict))
+
+
+DOWN_SAMPLING_INVALID_CASES = [
+    ("pipelines.test.stride_n",
+     Parameter.Type.INTEGER,
+     1,
+     "greater than or equal to 2"),
+     
+    ("pipelines.test.max_rate_hz",
+     Parameter.Type.DOUBLE,
+     -5.0,
+     r"max_rate_hz\n  Input should be greater than or equal to 0"),
+    ("pipelines.test.downsampling_mode",
+     Parameter.Type.STRING,
+     "invalid_mode",
+     "String should match pattern '.*(none|max_rate|stride).*'"),
+]
+
+
+@pytest.mark.parametrize(
+    "param_name, param_type, invalid_value, err_msg",
+    DOWN_SAMPLING_INVALID_CASES,
+)
+def test_recorder_invalid_downsampling_params(
+        param_name,
+        param_type,
+        invalid_value,
+        err_msg):
+    """
+    Test that the Recorder Node raises a ValueError
+    for invalid downsampling config.
+    """
+
+    invalid_param = Parameter(param_name, param_type, invalid_value)
+    all_pipeline_params = pipeline_params() + [invalid_param]
+
+    with pytest.raises(ValueError, match=rf"{err_msg}"):
+        Recorder(
+            parameter_overrides=as_overrides(storage_params(), all_pipeline_params)
+        )

@@ -258,7 +258,9 @@ class Recorder(Node):
         )
     
     # Downsampling Gate Function
-    def down_sampling(cfg, state, timestamp):
+    @staticmethod
+    def down_sampling(cfg, state, timestamp) -> bool:
+        """Determine if the current message should be skipped."""
         if cfg.downsampling_mode == "stride":
             if cfg.stride_n is None or cfg.stride_n < 2:
                 state.get_logger().error(
