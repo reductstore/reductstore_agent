@@ -36,8 +36,45 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 from rosbag2_py import LocalMessageDefinitionSource
 
-from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
+from .config_models import (
+    FilenameMode,
+    PipelineConfig,
+    PipelineState,
+    StorageConfig,
+    DownsamplingMode
+)
 from .utils import get_or_create_event_loop
+
+
+def create_stride_downsampler(cfg):
+    stride_n = cfg.stride_n
+
+    def stride_downsampler(state, timestamp):
+        return (state.msg_counter % stride_n) != 0
+    
+    return stride_downsampler
+
+
+def create_max_rate_downsampler(cfg):
+    max_rate_period_ns = 1e9 / cfg.max_rate_hz
+
+    def max_rate_downsampler(state, timestamp):
+        if state.last_recorded_timestamp is None:
+            state.last_recorded_timestamp = timestamp
+            return False
+        return (timestamp - state.last_recorded_timestamp) < max_rate_period_ns
+    
+    return max_rate_downsampler
+
+
+def update_stride(state, timestamp):
+    """Updates state.msg_counter for 'stride'."""
+    state.msg_counter += 1
+
+
+def update_max_rate(state, timestamp):
+    """Updates last_recorded_timestamp for 'max_rate'."""
+    state.last_recorded_timestamp = timestamp
 
 
 class Recorder(Node):
@@ -189,11 +226,20 @@ class Recorder(Node):
             max_size = cfg.spool_max_size_bytes
             buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
             writer = self.create_mcap_writer(buffer, pipeline_name)
+            if cfg.downsampling_mode == DownsamplingMode.STRIDE:
+                down_sample_func = create_stride_downsampler(cfg)
+                update_func = update_stride
+            elif cfg.downsampling_mode == DownsamplingMode.MAX_RATE:
+                down_sample_func = create_max_rate_downsampler(cfg)
+                update_func = update_max_rate
 
             state = PipelineState(
                 topics=topics,
                 buffer=buffer,
                 writer=writer,
+                down_sample=down_sample_func,
+                update_state=update_func
+
             )
             self.pipeline_states[pipeline_name] = state
 
@@ -256,40 +302,6 @@ class Recorder(Node):
             compression=compression,
             enable_crcs=enable_crcs,
         )
-
-    # Downsampling Gate Function
-    @staticmethod
-    def down_sampling(cfg, state, timestamp) -> bool:
-        """Determine if the current message should be skipped."""
-        if cfg.downsampling_mode == "stride":
-            if cfg.stride_n is None or cfg.stride_n < 2:
-                state.get_logger().error(
-                    f"Pipeline '{state.pipeline_name}' in 'stride' mode has invalid "
-                    f"or missing stride_n: {cfg.stride_n}. Skipping messages."
-                )
-                return True
-
-            state.msg_counter += 1
-            return not ((state.msg_counter % cfg.stride_n) == 0)
-
-        if cfg.downsampling_mode == "max_rate":
-            if cfg.max_rate_hz is None or cfg.max_rate_hz <= 0.0:
-                state.get_logger().error(
-                    f"Pipeline '{state.pipeline_name}' in 'max_rate' mode has invalid "
-                    f"or missing max_rate_hz: {cfg.max_rate_hz}. Skipping messages."
-                )
-                return True
-            max_rate_period = 1e9 / cfg.max_rate_hz
-            if (
-                state.last_recorded_timestamp is None
-                or (timestamp - state.last_recorded_timestamp) >= max_rate_period
-            ):
-                state.last_recorded_timestamp = timestamp
-                return False
-            else:
-                return True  # skip message if message is in waiting period
-
-        return False
 
     #
     # Topic Subscription
@@ -423,7 +435,6 @@ class Recorder(Node):
     def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
-            cfg = self.pipeline_configs[pipeline_name]
             if topic_name not in state.topics:
                 self.log_debug(
                     lambda: f"Skipping message for pipeline '{pipeline_name}' "
@@ -434,13 +445,11 @@ class Recorder(Node):
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
 
-            if self.down_sampling(cfg, state, publish_time):
-                self.log_debug(
-                    lambda: f"Skipping message for pipeline '{pipeline_name}' "
-                    f"- downsampling mode '{cfg.downsampling_mode}'."
-                )
-                continue  # skip the message
+            state.update_state(state, publish_time)
 
+            if state.down_sample(state, publish_time):
+                continue
+            
             self.log_debug(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )

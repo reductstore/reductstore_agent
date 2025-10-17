@@ -23,6 +23,7 @@
 import re
 from enum import Enum
 from tempfile import SpooledTemporaryFile
+from typing import Callable, Any
 
 from mcap.records import Schema
 from mcap_ros2.writer import Writer as McapWriter
@@ -77,6 +78,14 @@ class FilenameMode(str, Enum):
 
     TIMESTAMP = "timestamp"
     INCREMENTAL = "incremental"
+
+
+class DownsamplingMode(str, Enum):
+    """Downsampling mode for pipeline."""
+
+    NONE = "none"
+    STRIDE = "stride"
+    MAX_RATE = "max_rate"
 
 
 class PipelineConfig(BaseModel):
@@ -173,6 +182,10 @@ class PipelineConfig(BaseModel):
         return "\n".join(lines)
 
 
+DownsamplerFunc = Callable[[Any, Any, int], bool]
+UpdateFunc = Callable[[Any, int], None]
+
+
 class PipelineState(BaseModel):
     """State for a recording pipeline."""
 
@@ -190,3 +203,5 @@ class PipelineState(BaseModel):
     is_uploading: bool = False
     msg_counter: int = 0
     last_recorded_timestamp: int | None = None
+    down_sample: DownsamplerFunc = Field(default=lambda state, timestamp: False)
+    update_state: UpdateFunc | None = Field(default=None)
