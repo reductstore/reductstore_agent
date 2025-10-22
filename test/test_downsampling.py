@@ -23,16 +23,21 @@
 import pytest
 import io
 
+from reduct.client import Client
+
 import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 from mcap.reader import make_reader
 from mcap_ros2.decoder import DecoderFactory
-
+from rclpy.publisher import Publisher
+from std_msgs.msg import String
+import time
 
 from reductstore_agent.recorder import (
     Recorder,
-    create_stride_downsampler, 
+    create_stride_downsampler,
     create_max_rate_downsampler
 )
 from test_recorder_params import (
@@ -42,10 +47,7 @@ from test_recorder_params import (
     downsampling_params_max_rate,
     downsampling_params_stride
 )
-from test_storage import (
-    publish_and_spin,
-    get_or_create_event_loop
-)
+from test_storage import get_or_create_event_loop
 
 @pytest.fixture
 def downsampling_func_accessor():
@@ -103,9 +105,7 @@ def test_downsampling_max_hz_logic():
     ), "Msg 4 (too soon from Msg 3) should be skipped."
 
 
-# Integration tests
-# There is the problem with publish_and_spin where not all 50 messages get published
-# increasing the timeout of spin_once increases the messages published, but only to e.x. 47/50
+
 
 @pytest.fixture
 def stride_recorder():
@@ -114,24 +114,23 @@ def stride_recorder():
         parameter_overrides=as_overrides(
             storage_params(),
             pipeline_params(),
-            downsampling_params_stride()
+            # downsampling_params_stride()
         )
     )
     yield node
     node.destroy_node()
 
 def test_downsampling_integration_stride(
-    reduct_client, publisher_node, publisher, stride_recorder
+    reduct_client: Client, publisher_node: rclpy.node, publisher: Publisher, stride_recorder: Recorder
 ):
     TOTAL_MESSAGES = 50
-    EXPECTED_RECORDED_MESSAGES = 10  
+    EXPECTED_RECORDED_MESSAGES = 10
 
     publish_and_spin(
         publisher_node,
         publisher,
         stride_recorder,
         n_msgs=TOTAL_MESSAGES,
-        n_cycles=1
     )
     async def fetch():
         bucket = await reduct_client.get_bucket("test_bucket")

@@ -184,6 +184,7 @@ class PipelineConfig(BaseModel):
 
 DownsamplerFunc = Callable[[Any, Any, int], bool]
 UpdateFunc = Callable[[Any, int], None]
+UpdateStampFunc = Callable[[Any, int], None]
 
 
 class PipelineState(BaseModel):
@@ -205,3 +206,4 @@ class PipelineState(BaseModel):
     last_recorded_timestamp: int | None = None
     down_sample: DownsamplerFunc = Field(default=lambda state, timestamp: False)
     update_state: UpdateFunc | None = Field(default=None)
+    update_stamp: UpdateStampFunc | None = Field(default=None)
