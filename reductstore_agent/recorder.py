@@ -41,47 +41,9 @@ from .config_models import (
     PipelineConfig,
     PipelineState,
     StorageConfig,
-    DownsamplingMode
+    Downsampler
 )
 from .utils import get_or_create_event_loop
-
-
-def create_stride_downsampler(cfg):
-    """Create stride_downsampler."""
-    stride_n = cfg.stride_n
-
-    def stride_downsampler(state, timestamp):
-        return (state.msg_counter % stride_n) != 0
-    
-    return stride_downsampler
-
-
-def create_max_rate_downsampler(cfg):
-    """Create max_rate_downsampler."""
-    max_rate_period_ns = 1e9 / cfg.max_rate_hz
-
-    def max_rate_downsampler(state, timestamp):
-        if state.last_recorded_timestamp is None:
-            state.last_recorded_timestamp = timestamp
-            return False
-        return (timestamp - state.last_recorded_timestamp) < max_rate_period_ns
-    
-    return max_rate_downsampler
-
-
-def update_stride(state, timestamp):
-    """Update state.msg_counter for 'stride'."""
-    state.msg_counter += 1
-
-
-def update_max_rate(state, timestamp):
-    """Update last_recorded_timestamp for 'max_rate'."""
-    state.last_recorded_timestamp = timestamp
-
-
-def no_update(state, timestmap):
-    """Stub function in case for 'None' mode."""
-    pass
 
 
 class Recorder(Node):
@@ -233,27 +195,13 @@ class Recorder(Node):
             max_size = cfg.spool_max_size_bytes
             buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
             writer = self.create_mcap_writer(buffer, pipeline_name)
-            if cfg.downsampling_mode == DownsamplingMode.STRIDE:
-                down_sample_func = create_stride_downsampler(cfg)
-                update_func = update_stride
-                update_stamp_func = no_update
-            elif cfg.downsampling_mode == DownsamplingMode.MAX_RATE:
-                down_sample_func = create_max_rate_downsampler(cfg)
-                update_func = no_update
-                update_stamp_func = update_max_rate
-            else:
-                down_sample_func = no_update
-                update_func = no_update
-                update_stamp_func = no_update
+            downsampler_instance = Downsampler(cfg)
 
             state = PipelineState(
                 topics=topics,
                 buffer=buffer,
                 writer=writer,
-                down_sample=down_sample_func,
-                update_state=update_func,
-                update_stamp=update_stamp_func
-
+                downsampler=downsampler_instance
             )
             self.pipeline_states[pipeline_name] = state
 
@@ -459,12 +407,8 @@ class Recorder(Node):
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
 
-            state.update_state(state, publish_time)
-
-            if state.down_sample(state, publish_time):
+            if state.downsampler and state.downsampler.downsampling(publish_time):
                 continue
-
-            state.update_stamp(state, publish_time)
             
             self.log_debug(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"

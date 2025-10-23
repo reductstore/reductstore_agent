@@ -23,7 +23,7 @@
 import re
 from enum import Enum
 from tempfile import SpooledTemporaryFile
-from typing import Callable, Any
+from typing import Optional
 
 from mcap.records import Schema
 from mcap_ros2.writer import Writer as McapWriter
@@ -182,9 +182,53 @@ class PipelineConfig(BaseModel):
         return "\n".join(lines)
 
 
-DownsamplerFunc = Callable[[Any, Any, int], bool]
-UpdateFunc = Callable[[Any, int], None]
-UpdateStampFunc = Callable[[Any, int], None]
+class Downsampler:
+    """Downsampler class for logic and state of a pipeline."""
+
+    def __init__(self, cfg: PipelineConfig):
+        """Initialize Downsampler Instance."""
+        self.mode = cfg.downsampling_mode
+
+        if self.mode == DownsamplingMode.STRIDE:
+            self.stride_n = cfg.stride_n
+            self.msg_counter: int = 0
+            self.downsampling = self.downsampler_stride
+
+        elif self.mode == DownsamplingMode.MAX_RATE:
+            self.max_rate_hz = cfg.max_rate_hz
+            self.last_recorded_timestamp: int | None = None
+            self.period_ns = 1e9 / self.max_rate_hz
+            self.downsampling = self.downsampler_max_rate
+
+        else:
+            self.downsampling = self.stub_function
+            
+    def downsampler_stride(self, timestamp):
+        """Downsample logic for 'stride' mode."""
+        if self.stride_n == 0:
+            return False
+        
+        skip = self.msg_counter % self.stride_n != 0
+        self.msg_counter += 1
+
+        return skip
+    
+    def downsampler_max_rate(self, timestamp):
+        """Downsample logic for 'max_rate' mode."""
+        if self.last_recorded_timestamp is None:
+            self.last_recorded_timestamp = timestamp
+            return False
+        
+        skip = (timestamp - self.last_recorded_timestamp) < self.period_ns
+
+        if not skip:
+            self.last_recorded_timestamp = timestamp
+            return False
+        return skip
+    
+    def stub_function(self, timestamp):
+        """Set downsampling to do nothing."""
+        return False
 
 
 class PipelineState(BaseModel):
@@ -202,8 +246,4 @@ class PipelineState(BaseModel):
     timer: Timer | None = None
     current_size: int = 0
     is_uploading: bool = False
-    msg_counter: int = 0
-    last_recorded_timestamp: int | None = None
-    down_sample: DownsamplerFunc = Field(default=lambda state, timestamp: False)
-    update_state: UpdateFunc | None = Field(default=None)
-    update_stamp: UpdateStampFunc | None = Field(default=None)
+    downsampler: Optional[Downsampler] = Field(default=None)

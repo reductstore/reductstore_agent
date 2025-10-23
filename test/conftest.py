@@ -70,7 +70,7 @@ def publisher_node() -> Generator[Node, None, None]:
 @pytest.fixture
 def publisher(publisher_node: Node) -> Publisher:
     """Create a publisher for the test topic."""
-    pub = publisher_node.create_publisher(String, "/test/topic", 50)
+    pub = publisher_node.create_publisher(String, "/test/topic", 10)
     return pub
 
 
