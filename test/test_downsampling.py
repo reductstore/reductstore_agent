@@ -23,7 +23,7 @@
 from reductstore_agent.config_models import (
     Downsampler,
     DownsamplingMode,
-    PipelineConfig
+    PipelineConfig,
 )
 
 

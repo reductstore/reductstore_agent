@@ -37,11 +37,11 @@ from reduct import BucketSettings, Client
 from rosbag2_py import LocalMessageDefinitionSource
 
 from .config_models import (
+    Downsampler,
     FilenameMode,
     PipelineConfig,
     PipelineState,
     StorageConfig,
-    Downsampler
 )
 from .utils import get_or_create_event_loop
 
@@ -201,7 +201,7 @@ class Recorder(Node):
                 topics=topics,
                 buffer=buffer,
                 writer=writer,
-                downsampler=downsampler_instance
+                downsampler=downsampler_instance,
             )
             self.pipeline_states[pipeline_name] = state
 
@@ -409,7 +409,7 @@ class Recorder(Node):
 
             if state.downsampler and state.downsampler.downsampling(publish_time):
                 continue
-            
+
             self.log_debug(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
             )

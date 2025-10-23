@@ -202,30 +202,30 @@ class Downsampler:
 
         else:
             self.downsampling = self.stub_function
-            
+
     def downsampler_stride(self, timestamp):
         """Downsample logic for 'stride' mode."""
         if self.stride_n == 0:
             return False
-        
+
         skip = self.msg_counter % self.stride_n != 0
         self.msg_counter += 1
 
         return skip
-    
+
     def downsampler_max_rate(self, timestamp):
         """Downsample logic for 'max_rate' mode."""
         if self.last_recorded_timestamp is None:
             self.last_recorded_timestamp = timestamp
             return False
-        
+
         skip = (timestamp - self.last_recorded_timestamp) < self.period_ns
 
         if not skip:
             self.last_recorded_timestamp = timestamp
             return False
         return skip
-    
+
     def stub_function(self, timestamp):
         """Set downsampling to do nothing."""
         return False
