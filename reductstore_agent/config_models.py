@@ -23,7 +23,7 @@
 import re
 from enum import Enum
 from tempfile import SpooledTemporaryFile
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from mcap.records import Schema
 from mcap_ros2.writer import Writer as McapWriter
@@ -32,9 +32,8 @@ from rclpy.timer import Timer
 from reduct import QuotaType
 
 from .utils import parse_bytes_with_si_units
+from .downsampler import Downsampler
 
-if TYPE_CHECKING:
-    from .downsampler import Downsampler
 
 
 class StorageConfig(BaseModel):
@@ -200,4 +199,4 @@ class PipelineState(BaseModel):
     timer: Timer | None = None
     current_size: int = 0
     is_uploading: bool = False
-    downsampler: Optional["Downsampler"] = Field(default=None)  # noqa: F821
+    downsampler: Optional["Downsampler"] = Field(default=None)

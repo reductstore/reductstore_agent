@@ -20,8 +20,10 @@
 
 """Downsampler class for the Recorder node."""
 
-from .config_models import DownsamplingMode, PipelineConfig
-
+from .config_models import DownsamplingMode
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .config_models import PipelineConfig
 
 class Downsampler:
     """Downsampler class for logic and state of a pipeline."""
