@@ -39,10 +39,10 @@ from rosbag2_py import LocalMessageDefinitionSource
 from .config_models import (
     FilenameMode,
     PipelineConfig,
-    PipelineState,
     StorageConfig,
 )
 from .downsampler import Downsampler
+from .pipeline_state import PipelineState
 from .utils import get_or_create_event_loop
 
 

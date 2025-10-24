@@ -22,18 +22,11 @@
 
 import re
 from enum import Enum
-from tempfile import SpooledTemporaryFile
-from typing import Optional
 
-from mcap.records import Schema
-from mcap_ros2.writer import Writer as McapWriter
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from rclpy.timer import Timer
+from pydantic import BaseModel, Field, field_validator
 from reduct import QuotaType
 
 from .utils import parse_bytes_with_si_units
-from .downsampler import Downsampler
-
 
 
 class StorageConfig(BaseModel):
@@ -182,21 +175,3 @@ class PipelineConfig(BaseModel):
 
             lines.append(f"{indent}{key.ljust(max_key_len)} = {value_str}")
         return "\n".join(lines)
-
-
-class PipelineState(BaseModel):
-    """State for a recording pipeline."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    topics: list[str] = Field(default_factory=list)
-    schemas_by_topic: dict[str, Schema] = Field(default_factory=dict)
-    schema_by_type: dict[str, Schema] = Field(default_factory=dict)
-    increment: int = 0
-    first_timestamp: int | None = None
-    buffer: SpooledTemporaryFile[bytes] | None = None
-    writer: McapWriter | None = None
-    timer: Timer | None = None
-    current_size: int = 0
-    is_uploading: bool = False
-    downsampler: Optional["Downsampler"] = Field(default=None)
