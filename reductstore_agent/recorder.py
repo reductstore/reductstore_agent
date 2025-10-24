@@ -37,12 +37,12 @@ from reduct import BucketSettings, Client
 from rosbag2_py import LocalMessageDefinitionSource
 
 from .config_models import (
-    Downsampler,
     FilenameMode,
     PipelineConfig,
     PipelineState,
     StorageConfig,
 )
+from .downsampler import Downsampler
 from .utils import get_or_create_event_loop
 
 

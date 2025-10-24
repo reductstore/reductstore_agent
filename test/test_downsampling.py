@@ -21,10 +21,10 @@
 """Test Recorder node downsampling logic."""
 
 from reductstore_agent.config_models import (
-    Downsampler,
     DownsamplingMode,
     PipelineConfig,
 )
+from reductstore_agent.downsampler import Downsampler
 
 
 def test_downsampling_stride_logic():

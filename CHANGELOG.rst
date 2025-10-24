@@ -19,3 +19,5 @@ Changelog for package reductstore_agent
   Add code linting with flake8, pep257, and copyright checks
 * Merge pull request `#6 <https://github.com/reductstore/ros2_reduct_agent/issues/6>`_ from reductstore/3-minimum-recording-implementation
   Implement minimum recorder agent for ROS 2 MCAP files
+* Merge pull request `#10 <https://github.com/reductstore/reductstore_agent/issues/10>`_ from reductstore/10-add-downsampling-option
+  Implement downsampling option per pipeline
