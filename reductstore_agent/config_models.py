@@ -29,8 +29,11 @@ from mcap_ros2.writer import Writer as McapWriter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rclpy.timer import Timer
 from reduct import QuotaType
+from typing import Optional, TYPE_CHECKING
 
 from .utils import parse_bytes_with_si_units
+if TYPE_CHECKING:
+    from .downsampler import Downsampler
 
 
 class StorageConfig(BaseModel):
@@ -196,4 +199,4 @@ class PipelineState(BaseModel):
     timer: Timer | None = None
     current_size: int = 0
     is_uploading: bool = False
-    downsampler: None = None
+    downsampler: Optional["Downsampler"] = Field(default=None)  # noqa: F821
