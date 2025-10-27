@@ -450,7 +450,7 @@ DOWN_SAMPLING_INVALID_CASES = [
         "pipelines.test.downsampling_mode",
         Parameter.Type.STRING,
         "invalid_mode",
-        "String should match pattern '.*(none|max_rate|stride).*'",
+        r"Input should be 'none', 'stride' or 'max_rate'",
     ),
 ]
 
