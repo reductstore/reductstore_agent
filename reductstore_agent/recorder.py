@@ -36,7 +36,13 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 from rosbag2_py import LocalMessageDefinitionSource
 
-from .config_models import FilenameMode, PipelineConfig, PipelineState, StorageConfig
+from .config_models import (
+    FilenameMode,
+    PipelineConfig,
+    StorageConfig,
+)
+from .downsampler import Downsampler
+from .pipeline_state import PipelineState
 from .utils import get_or_create_event_loop
 
 
@@ -194,6 +200,7 @@ class Recorder(Node):
                 topics=topics,
                 buffer=buffer,
                 writer=writer,
+                downsampler=Downsampler(cfg),
             )
             self.pipeline_states[pipeline_name] = state
 
@@ -385,6 +392,7 @@ class Recorder(Node):
     #
     # Message Processing
     #
+
     def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
@@ -397,6 +405,9 @@ class Recorder(Node):
 
             if state.first_timestamp is None:
                 state.first_timestamp = publish_time
+
+            if state.downsampler and state.downsampler.downsampling(publish_time):
+                continue
 
             self.log_debug(
                 lambda: f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
