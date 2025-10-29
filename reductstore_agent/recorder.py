@@ -195,13 +195,12 @@ class Recorder(Node):
             max_size = cfg.spool_max_size_bytes
             buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
             writer = self.create_mcap_writer(buffer, pipeline_name)
-            downsampler_instance = Downsampler(cfg)
 
             state = PipelineState(
                 topics=topics,
                 buffer=buffer,
                 writer=writer,
-                downsampler=downsampler_instance,
+                downsampler=Downsampler(cfg),
             )
             self.pipeline_states[pipeline_name] = state
 

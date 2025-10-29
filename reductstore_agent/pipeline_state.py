@@ -22,7 +22,6 @@
 
 
 from tempfile import SpooledTemporaryFile
-from typing import Optional
 
 from mcap.records import Schema
 from mcap_ros2.writer import Writer as McapWriter
@@ -47,4 +46,4 @@ class PipelineState(BaseModel):
     timer: Timer | None = None
     current_size: int = 0
     is_uploading: bool = False
-    downsampler: Optional["Downsampler"] = Field(default=None)
+    downsampler: Downsampler | None = None
