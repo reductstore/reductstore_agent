@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from rclpy.timer import Timer
 
 from .downsampler import Downsampler
+from .raw_output import RawOutputWriter
 
 
 class PipelineState(BaseModel):
@@ -42,7 +43,7 @@ class PipelineState(BaseModel):
     increment: int = 0
     first_timestamp: int | None = None
     buffer: SpooledTemporaryFile[bytes] | None = None
-    writer: McapWriter | None = None
+    writer: McapWriter | RawOutputWriter | None = None
     timer: Timer | None = None
     current_size: int = 0
     is_uploading: bool = False

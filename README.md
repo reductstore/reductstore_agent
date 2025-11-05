@@ -152,6 +152,10 @@ Each pipeline supports the following parameters:
   * `"stride_n"` — Required if downsampling_mode is *"stride"*, only records every *nth* message. Must be >= 2.
   * `"max_rate_hz"` — Required if downsampling_mode is *"max_rate"*, specifies maximum frequency of recorded messages.
 
+* **`output_format`**: Choose one of the output formats:
+
+  * `"mcap"` *(default)* — Send mcap files to ReductStore
+  * `"raw"` — Send binary CDR to ReductStore
 
 ## Snap Package
 
