@@ -77,3 +77,14 @@ def parse_bytes_with_si_units(value: str | int | float) -> int:
         raise ValueError(f"Byte value must be non-negative, got {result}")
 
     return result
+
+
+def ns_to_us(ns: int) -> int:
+    """Round nanoseconds to microseconds."""
+    return int(round(ns / 1_000.0))
+
+
+def ros2_type_name(msg) -> str:
+    """Get Topic Names of messages."""
+    mod = msg.__class__.__module__.replace(".", "/")
+    return f"{mod}/{msg.__class__.__name__}"
