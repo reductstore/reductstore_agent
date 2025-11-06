@@ -21,98 +21,90 @@
 """Raw output format logic per pipeline."""
 
 
+from typing import Any, Dict, List, Tuple
+
 from rclpy.serialization import serialize_message
-from reductstore_agent.config_models import PipelineConfig
-from typing import Any
-import io
-from tempfile import SpooledTemporaryFile
-import json
+from reduct import Bucket
+
 from .utils import ns_to_us, ros2_type_name
-import struct
 
-
-BATCH_LIMIT = 100 * 1024
-FRAME_HEADER = struct.Struct("<QII")
+KB_100 = 100 * 1024
 
 
 class RawOutputWriter:
+    """RawOutput Class for binary CDR."""
+
     def __init__(
-            self,
-            bucket, 
-            buffer: SpooledTemporaryFile[bytes],
-            pipeline_name: PipelineConfig,
-            # spool_max_size: int
+        self,
+        bucket: Bucket,
+        pipeline_name: str,
+        flush_threshold_bytes: int = 10 * 1024 * 1024,  # i.e. 10MB
+        logger=None,
     ):
+        """Initialize RawOutput writer."""
         self.bucket = bucket
-        self.buffer = buffer
-        # self.spool_max_size = spool_max_size
         self.pipeline_name = pipeline_name
+        self.flush_threshold_bytes = flush_threshold_bytes
+        self._batch: List[Tuple[int, bytes, Dict[str, str]]] = []
+        self._batch_bytes: int = 0
+        self.pipeline_name = pipeline_name
+        if logger is None:
+            from rclpy.logging import get_logger
 
+            self.logger = get_logger(f"RawOutputWriter[{pipeline_name}]")
+        else:
+            self.logger = logger
 
-    async def upload_to_reductstore(self, pipeline_name, serialized_data: bytes, timestamp: int, labels):
-        await self.client.bucket.write(
-            pipeline_name,
-            timestamp, # use as index
-            serialized_data,
-            labels
+    async def upload_to_reductstore(
+        self, serialized_data: bytes, timestamp_us: int, labels: Dict
+    ):
+        """Upload raw data to ReductStore with labels and timestamp."""
+        await self.bucket.write(
+            entry_name=self.pipeline_name,
+            timestamp=timestamp_us,
+            data=serialized_data,
+            content_length=len(serialized_data),
+            labels=labels,
         )
 
-
-    def write_message(self, message: Any, publish_time: int):
-        try: 
+    async def write_message(self, message: Any, publish_time: int):
+        """Write message to batch or upload to ReductStore."""
+        try:
             serialized_data = serialize_message(message)
-        except:
+        except Exception as exc:
+            self.logger.warning(
+                f"[{self.pipeline_name}] Could not serialize message "
+                f"({message.__class__.__name__}): {exc}"
+            )
             return
-        
-        # 2. Add labels timestamp etc
-        timestamp_ms =  ns_to_us(publish_time)
+
+        timestamp_us = ns_to_us(publish_time)
         topic_type = ros2_type_name(message)
         labels = {
             "type": f"{topic_type} Message",
             "serialization": "cdr",
         }
-        record_size = len(serialized_data)
-        if record_size >= self.BATCH_LIMIT:
-            # Upload because streaming
-            # Flush and upload buffer first and then stream this
-            self.flush_buffer(self.buffer)
-            # Do we combine the data first ?
-            # Because if we do it like this, two calls are made
-            self.upload_to_reductstore(self.pipeline_name, serialized_data, timestamp_ms, labels)
-        
+        if len(serialized_data) >= KB_100:
+            await self.flush_batch()
+            await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
+            return
+
         # If smaller than 100KB batch the record into buffer
-        self.append_record(self.buffer, timestamp_ms, labels, serialized_data)
+        self.append_record(timestamp_us, serialized_data, labels)
+        if self._batch_bytes >= self.flush_threshold_bytes:
+            await self.flush_batch()
 
+    def append_record(
+        self, timestamp_us: int, serialized_data: bytes, labels: Dict
+    ) -> None:
+        """Append raw data to batch."""
+        self._batch.append((timestamp_us, serialized_data, labels))
+        self._batch_bytes += len(serialized_data)
 
-def append_record(self, buffer: SpooledTemporaryFile, ts_us: int, labels: dict, serialized_data: bytes) -> None:
-    labels_bytes = json.dumps(labels, separators=(",", ":")).encode("utf-8")
-    # Have to add a header for the buffer, to later extract data out of it
-    hdr = self.FRAME_HEADER.pack(ts_us, len(labels_bytes), len(serialized_data))
-
-    buffer.seek(0, io.SEEK_END)
-    buffer.write(hdr)
-    buffer.write(labels_bytes)
-    buffer.write(serialized_data)
-
-
-def flush_buffer(self, buffer: SpooledTemporaryFile):
-    buffer.seek(0)
-    read = buffer.read
-    while True:
-        hdr = read(self.FRAME_HEADER.size)
-        if not hdr:
-            break
-        timestamp_ms, l_len, p_len = self.FRAME_HEADER.unpack(hdr)
-        labels = json.loads(read(l_len).decode("utf-8"))
-        serialized_data = read(p_len)
-
-        self.upload_to_reductstore(self.pipeline_name, serialized_data, timestamp_ms, labels)
-
-    buffer.seek(0)
-    buffer.truncate(0)
-    
-
-    
-
-
-
+    async def flush_batch(self) -> None:
+        """Flush the batch and upload to ReductStore."""
+        self._batch.sort(key=lambda r: r[0])
+        for timestamp_us, serialized_data, labels in self._batch:
+            await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
+        self._batch.clear()
+        self._batch_bytes = 0

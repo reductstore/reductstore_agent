@@ -420,7 +420,7 @@ class Recorder(Node):
                     f"registered for topic '{topic_name}'"
                 )
                 continue
-           
+
             state.writer.write_message(
                 topic=topic_name,
                 schema=schema,
@@ -516,7 +516,6 @@ class Recorder(Node):
             content_type="application/mcap",
             labels=self.pipeline_configs[pipeline_name].static_labels,
         )
-
 
     async def read_in_chunks(
         self, buffer: SpooledTemporaryFile[bytes], chunk_size: int = 100_000
