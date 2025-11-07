@@ -21,7 +21,7 @@
 """Raw output format logic per pipeline."""
 
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Union
 
 from rclpy.serialization import serialize_message
 from reduct import Bucket
@@ -45,7 +45,7 @@ class RawOutputWriter:
         self.bucket = bucket
         self.pipeline_name = pipeline_name
         self.flush_threshold_bytes = flush_threshold_bytes
-        self._batch: List[Tuple[int, bytes, Dict[str, str]]] = []
+        self._batch: Dict[int, Dict[str, Union[bytes, Dict[str, str]]]] = {}
         self._batch_bytes: int = 0
         self.pipeline_name = pipeline_name
         if logger is None:
@@ -89,7 +89,7 @@ class RawOutputWriter:
             await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
             return
 
-        # If smaller than 100KB batch the record into buffer
+        # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
         if self._batch_bytes >= self.flush_threshold_bytes:
             await self.flush_batch()
@@ -98,13 +98,18 @@ class RawOutputWriter:
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
     ) -> None:
         """Append raw data to batch."""
-        self._batch.append((timestamp_us, serialized_data, labels))
+        self._batch[timestamp_us] = {"data": serialized_data, "labels": labels}
         self._batch_bytes += len(serialized_data)
 
     async def flush_batch(self) -> None:
         """Flush the batch and upload to ReductStore."""
-        self._batch.sort(key=lambda r: r[0])
-        for timestamp_us, serialized_data, labels in self._batch:
-            await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
+        errors = await self.bucket.write_batch(
+            entry_name=self.pipeline_name, batch=self._batch
+        )
+        if errors:
+            self.logger.warning(
+                f"[{self.pipeline_name}] Batch upload failed for {len(errors)} record."
+                f"Keys: {list(errors.keys())[:5]}..."
+            )
         self._batch.clear()
         self._batch_bytes = 0

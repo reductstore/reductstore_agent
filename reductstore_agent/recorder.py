@@ -36,13 +36,10 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 from rosbag2_py import LocalMessageDefinitionSource
 
-from .config_models import (
-    FilenameMode,
-    PipelineConfig,
-    StorageConfig,
-)
+from .config_models import FilenameMode, OutputFormat, PipelineConfig, StorageConfig
 from .downsampler import Downsampler
 from .pipeline_state import PipelineState
+from .rawoutput_writer import RawOutputWriter
 from .utils import get_or_create_event_loop
 
 
@@ -75,7 +72,7 @@ class Recorder(Node):
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
-        self.init_mcap_writers()
+        self.init_pipeline_writers()
 
         # Delay topic subscriptions
         delay = self.load_delay_config()
@@ -179,12 +176,12 @@ class Recorder(Node):
     #
     # MCAP Management
     #
-    def init_mcap_writers(self):
+    def init_pipeline_writers(self):
         """
-        Create an MCAP writer for each pipeline.
+        Create an MCAP/RAW writer for each pipeline.
 
         For each pipeline, this method creates a timer that fires after max_duration_s
-        and a callback to upload the MCAP.
+        and a callback to upload the MCAP/RAW data.
         """
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
@@ -192,26 +189,41 @@ class Recorder(Node):
         for pipeline_name, cfg in self.pipeline_configs.items():
             duration = cfg.split_max_duration_s
             topics = self.resolve_topics(cfg, all_topics)
-            max_size = cfg.spool_max_size_bytes
-            buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
-            writer = self.create_mcap_writer(buffer, pipeline_name)
 
-            state = PipelineState(
-                topics=topics,
-                buffer=buffer,
-                writer=writer,
-                downsampler=Downsampler(cfg),
-            )
+            if cfg.output_format == OutputFormat.MCAP:
+                max_size = cfg.spool_max_size_bytes
+                buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
+                writer = self.create_mcap_writer(buffer, pipeline_name)
+
+                state = PipelineState(
+                    topics=topics,
+                    buffer=buffer,
+                    writer=writer,
+                    downsampler=Downsampler(cfg),
+                )
+
+                timer = self.create_timer(
+                    float(duration),
+                    self.make_timer_callback(pipeline_name, state),
+                )
+                state.timer = timer
+
+            else:
+                writer = RawOutputWriter(
+                    bucket=self.bucket, pipeline_name=pipeline_name, logger=self.logger
+                )
+
+                state = PipelineState(
+                    topics=topics,
+                    buffer=None,
+                    writer=writer,
+                    downsampler=Downsampler(cfg),
+                )
+
             self.pipeline_states[pipeline_name] = state
 
-            timer = self.create_timer(
-                float(duration),
-                self.make_timer_callback(pipeline_name, state),
-            )
-            state.timer = timer
-
             self.log_info(
-                lambda: f"[{pipeline_name}] MCAP writer "
+                lambda: f"[{pipeline_name}] Pipeline writer "
                 f"initialized with config:\n{cfg.format_for_log()}"
             )
 
@@ -220,11 +232,16 @@ class Recorder(Node):
         pipeline_name: str,
         state: PipelineState,
     ):
-        """Finish current MCAP, upload it, and reset writer and buffer."""
+        """Finish current Pipeline writer, upload it, and reset writer and buffer."""
         cfg = self.pipeline_configs[pipeline_name]
         max_size = cfg.spool_max_size_bytes
         new_buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
-        new_writer = self.create_mcap_writer(new_buffer, pipeline_name)
+        if cfg.output_format == OutputFormat.MCAP:
+            new_writer = self.create_mcap_writer(new_buffer, pipeline_name)
+        else:
+            new_writer = RawOutputWriter(
+                bucket=self.bucket, pipeline_name=pipeline_name, logger=self.logger
+            )
 
         # Update state with new writer and buffer
         state.buffer = new_buffer
@@ -247,7 +264,7 @@ class Recorder(Node):
         self.setup_topic_subscriptions()
 
         self.log_debug(
-            lambda: f"[{pipeline_name}] MCAP writer reset - ready for next segment"
+            lambda: f"[{pipeline_name}] Pipeline writer reset - ready for next segment"
         )
 
     def create_mcap_writer(
@@ -343,10 +360,18 @@ class Recorder(Node):
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register schema once per message type and associate it with the topic."""
-        for state in self.pipeline_states.values():
+        for pipeline_name, state in self.pipeline_states.items():
             if topic_name not in state.topics or topic_name in state.schemas_by_topic:
                 continue
 
+            cfg = self.pipeline_configs[pipeline_name]
+            if cfg.output_format == OutputFormat.RAW:
+                # Need to bypass this method for RAW mode
+                state.schema_by_topic[topic_name] = True
+                self.log_debug(
+                    lambda: f"[{topic_name}] skipped schema "
+                    "registration for RAW output."
+                )
             if msg_type_str in state.schema_by_type:
                 schema = state.schema_by_type[msg_type_str]
             else:
@@ -396,6 +421,7 @@ class Recorder(Node):
     def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
+            cfg = self.pipeline_configs[pipeline_name]
             if topic_name not in state.topics:
                 self.log_debug(
                     lambda: f"Skipping message for pipeline '{pipeline_name}' "
@@ -427,10 +453,13 @@ class Recorder(Node):
                 message=message,
                 publish_time=publish_time,
             )
-            state.current_size = state.buffer.tell()
-            split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
-            if split_size and state.current_size >= split_size:
-                self.upload_pipeline(pipeline_name, state)
+
+            # This should only happen when MCAP output is set
+            if cfg.output_format == OutputFormat.MCAP:
+                state.current_size = state.buffer.tell()
+                split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
+                if split_size and state.current_size >= split_size:
+                    self.upload_pipeline(pipeline_name, state)
 
     #
     # Pipeline Management and Upload

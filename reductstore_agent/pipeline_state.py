@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from rclpy.timer import Timer
 
 from .downsampler import Downsampler
-from .raw_output import RawOutputWriter
+from .rawoutput_writer import RawOutputWriter
 
 
 class PipelineState(BaseModel):
