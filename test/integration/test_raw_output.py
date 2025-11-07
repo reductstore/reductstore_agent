@@ -28,7 +28,6 @@ from typing import Generator
 import pytest
 import rclpy
 from rclpy.parameter import Parameter
-from reduct import Client
 from reduct.error import ReductError
 from std_msgs.msg import String
 
@@ -147,7 +146,8 @@ def test_raw_output_streams_large_record(
                     return True
 
                 print(
-                    f"[TEST] Record not found yet, retrying... ({time.time() - start_time:.1f}s elapsed)"
+                    f"[TEST] Record not found yet, retrying... \
+                        ({time.time() - start_time:.1f}s elapsed)"
                 )
                 await asyncio.sleep(retry_interval)
 
