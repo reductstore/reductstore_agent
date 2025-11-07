@@ -75,10 +75,12 @@ class Recorder(Node):
         delay = self.load_delay_config()
         if delay <= 0.0:
             self.setup_topic_subscriptions()
+            self.start_pipeline_timers()
             return
 
         def _delayed_setup():
             self.setup_topic_subscriptions()
+            self.start_pipeline_timers()
             self.destroy_timer(timer)
 
         timer = self.create_timer(delay, _delayed_setup)
@@ -197,6 +199,7 @@ class Recorder(Node):
             timer = self.create_timer(
                 float(duration),
                 self.make_timer_callback(pipeline_name, state),
+                autostart=False,
             )
             state.timer = timer
 
@@ -206,6 +209,13 @@ class Recorder(Node):
                 lambda: f"[{pipeline_name}] Pipeline writer "
                 f"initialized with config:\n{cfg.format_for_log()}"
             )
+
+    def start_pipeline_timers(self):
+        """Start all pipeline timers after topic subscriptions are set up."""
+        for pipeline_name, state in self.pipeline_states.items():
+            if state.timer:
+                state.timer.reset()
+                self.log_debug(lambda: f"[{pipeline_name}] Timer started")
 
     def reset_pipeline_state(
         self,
