@@ -81,7 +81,7 @@ def parse_bytes_with_si_units(value: str | int | float) -> int:
 
 def ns_to_us(ns: int) -> int:
     """Round nanoseconds to microseconds."""
-    return int(round(ns / 1_000.0))
+    return int(ns / 1_000.0)
 
 
 def ros2_type_name(msg) -> str:

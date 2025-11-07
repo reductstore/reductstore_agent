@@ -367,11 +367,12 @@ class Recorder(Node):
             cfg = self.pipeline_configs[pipeline_name]
             if cfg.output_format == OutputFormat.RAW:
                 # Need to bypass this method for RAW mode
-                state.schema_by_topic[topic_name] = True
+                state.schemas_by_topic[topic_name] = True
                 self.log_debug(
                     lambda: f"[{topic_name}] skipped schema "
                     "registration for RAW output."
                 )
+                continue
             if msg_type_str in state.schema_by_type:
                 schema = state.schema_by_type[msg_type_str]
             else:
@@ -418,6 +419,7 @@ class Recorder(Node):
     # Message Processing
     #
 
+    # Seperate message
     def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
@@ -447,15 +449,23 @@ class Recorder(Node):
                 )
                 continue
 
-            state.writer.write_message(
-                topic=topic_name,
-                schema=schema,
-                message=message,
-                publish_time=publish_time,
-            )
+            if cfg.output_format == OutputFormat.RAW:
+                self.loop.create_task(
+                    state.writer.write_message(
+                        message=message,
+                        publish_time=publish_time,
+                        topic=topic_name,
+                        schema=schema,
+                    )
+                )
+            else:
+                state.writer.write_message(
+                    topic=topic_name,
+                    schema=schema,
+                    message=message,
+                    publish_time=publish_time,
+                )
 
-            # This should only happen when MCAP output is set
-            if cfg.output_format == OutputFormat.MCAP:
                 state.current_size = state.buffer.tell()
                 split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
                 if split_size and state.current_size >= split_size:

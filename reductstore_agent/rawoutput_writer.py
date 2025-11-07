@@ -21,10 +21,10 @@
 """Raw output format logic per pipeline."""
 
 
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 from rclpy.serialization import serialize_message
-from reduct import Bucket
+from reduct import Batch, Bucket
 
 from .utils import ns_to_us, ros2_type_name
 
@@ -45,7 +45,7 @@ class RawOutputWriter:
         self.bucket = bucket
         self.pipeline_name = pipeline_name
         self.flush_threshold_bytes = flush_threshold_bytes
-        self._batch: Dict[int, Dict[str, Union[bytes, Dict[str, str]]]] = {}
+        self._batch = Batch()
         self._batch_bytes: int = 0
         self.pipeline_name = pipeline_name
         if logger is None:
@@ -67,7 +67,7 @@ class RawOutputWriter:
             labels=labels,
         )
 
-    async def write_message(self, message: Any, publish_time: int):
+    async def write_message(self, message: Any, publish_time: int, **kwargs):
         """Write message to batch or upload to ReductStore."""
         try:
             serialized_data = serialize_message(message)
@@ -85,24 +85,27 @@ class RawOutputWriter:
             "serialization": "cdr",
         }
         if len(serialized_data) >= KB_100:
-            await self.flush_batch()
+            await self.flush_and_upload_batch()
             await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
             return
 
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
         if self._batch_bytes >= self.flush_threshold_bytes:
-            await self.flush_batch()
+            await self.flush_and_upload_batch()
 
     def append_record(
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
     ) -> None:
         """Append raw data to batch."""
-        self._batch[timestamp_us] = {"data": serialized_data, "labels": labels}
         self._batch_bytes += len(serialized_data)
+        self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)
 
-    async def flush_batch(self) -> None:
+    async def flush_and_upload_batch(self) -> None:
         """Flush the batch and upload to ReductStore."""
+        if self._batch_bytes == 0 and not self._batch:
+            return
+
         errors = await self.bucket.write_batch(
             entry_name=self.pipeline_name, batch=self._batch
         )
@@ -111,5 +114,10 @@ class RawOutputWriter:
                 f"[{self.pipeline_name}] Batch upload failed for {len(errors)} record."
                 f"Keys: {list(errors.keys())[:5]}..."
             )
-        self._batch.clear()
+        self._batch = Batch()
         self._batch_bytes = 0
+
+    # async def finish(self) -> None:
+    #     """Flush any remaining records in the batch before shutting down."""
+    #     self.logger.info("Flushing final batch before shutdown...")
+    #     await self.flush_and_opload_batch()
