@@ -23,24 +23,21 @@
 import importlib
 import re
 from collections import defaultdict
-from tempfile import SpooledTemporaryFile
-from typing import Any, AsyncGenerator
+from typing import Any
 
 import rclpy
-from mcap_ros2.writer import Writer as McapWriter
 from rclpy.impl.logging_severity import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.subscription import Subscription
 from rclpy.time import Time
 from reduct import BucketSettings, Client
-from rosbag2_py import LocalMessageDefinitionSource
 
-from .config_models import FilenameMode, OutputFormat, PipelineConfig, StorageConfig
 from .downsampler import Downsampler
-from .pipeline_state import PipelineState
-from .rawoutput_writer import RawOutputWriter
+from .models import PipelineConfig, StorageConfig
+from .state import PipelineState
 from .utils import get_or_create_event_loop
+from .writer import create_writer
 
 
 class Recorder(Node):
@@ -174,7 +171,7 @@ class Recorder(Node):
         )
 
     #
-    # MCAP Management
+    # Pipeline Writers Initialization
     #
     def init_pipeline_writers(self):
         """
@@ -190,35 +187,18 @@ class Recorder(Node):
             duration = cfg.split_max_duration_s
             topics = self.resolve_topics(cfg, all_topics)
 
-            if cfg.output_format == OutputFormat.MCAP:
-                max_size = cfg.spool_max_size_bytes
-                buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
-                writer = self.create_mcap_writer(buffer, pipeline_name)
+            writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
+            state = PipelineState(
+                topics=topics,
+                writer=writer,
+                downsampler=Downsampler(cfg),
+            )
 
-                state = PipelineState(
-                    topics=topics,
-                    buffer=buffer,
-                    writer=writer,
-                    downsampler=Downsampler(cfg),
-                )
-
-                timer = self.create_timer(
-                    float(duration),
-                    self.make_timer_callback(pipeline_name, state),
-                )
-                state.timer = timer
-
-            else:
-                writer = RawOutputWriter(
-                    bucket=self.bucket, pipeline_name=pipeline_name, logger=self.logger
-                )
-
-                state = PipelineState(
-                    topics=topics,
-                    buffer=None,
-                    writer=writer,
-                    downsampler=Downsampler(cfg),
-                )
+            timer = self.create_timer(
+                float(duration),
+                self.make_timer_callback(pipeline_name, state),
+            )
+            state.timer = timer
 
             self.pipeline_states[pipeline_name] = state
 
@@ -234,22 +214,16 @@ class Recorder(Node):
     ):
         """Finish current Pipeline writer, upload it, and reset writer and buffer."""
         cfg = self.pipeline_configs[pipeline_name]
-        max_size = cfg.spool_max_size_bytes
-        new_buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
-        if cfg.output_format == OutputFormat.MCAP:
-            new_writer = self.create_mcap_writer(new_buffer, pipeline_name)
-        else:
-            new_writer = RawOutputWriter(
-                bucket=self.bucket, pipeline_name=pipeline_name, logger=self.logger
-            )
 
-        # Update state with new writer and buffer
-        state.buffer = new_buffer
+        new_writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
+
+        # Update state with new writer
         state.writer = new_writer
         state.current_size = 0
         state.first_timestamp = None
         state.is_uploading = False
-        state.timer.reset()
+        if state.timer:
+            state.timer.reset()
 
         # Clear topics and schemas
         state.schema_by_type.clear()
@@ -265,20 +239,6 @@ class Recorder(Node):
 
         self.log_debug(
             lambda: f"[{pipeline_name}] Pipeline writer reset - ready for next segment"
-        )
-
-    def create_mcap_writer(
-        self, buffer: SpooledTemporaryFile[bytes], pipeline_name: str
-    ) -> McapWriter:
-        """Create and start an MCAP writer with default compression."""
-        chunk_size = self.pipeline_configs[pipeline_name].chunk_size_bytes
-        compression = self.pipeline_configs[pipeline_name].compression
-        enable_crcs = self.pipeline_configs[pipeline_name].enable_crcs
-        return McapWriter(
-            buffer,
-            chunk_size=chunk_size,
-            compression=compression,
-            enable_crcs=enable_crcs,
         )
 
     #
@@ -360,35 +320,13 @@ class Recorder(Node):
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register schema once per message type and associate it with the topic."""
-        for pipeline_name, state in self.pipeline_states.items():
+        for state in self.pipeline_states.values():
             if topic_name not in state.topics or topic_name in state.schemas_by_topic:
                 continue
 
-            cfg = self.pipeline_configs[pipeline_name]
-            if cfg.output_format == OutputFormat.RAW:
-                # Need to bypass this method for RAW mode
-                state.schemas_by_topic[topic_name] = True
-                self.log_debug(
-                    lambda: f"[{topic_name}] skipped schema "
-                    "registration for RAW output."
-                )
-                continue
-            if msg_type_str in state.schema_by_type:
-                schema = state.schema_by_type[msg_type_str]
-            else:
-                source = LocalMessageDefinitionSource()
-                msg_def = source.get_full_text(msg_type_str)
-                schema = state.writer.register_msgdef(
-                    datatype=msg_def.topic_type,
-                    msgdef_text=msg_def.encoded_message_definition,
-                )
-                state.schema_by_type[msg_type_str] = schema
-                self.log_debug(
-                    lambda: f"[{topic_name}] Registered schema "
-                    f"for message type '{msg_type_str}'"
-                )
-
-            state.schemas_by_topic[topic_name] = schema
+            # Let the writer handle schema registration internally
+            state.writer.register_message_schema(topic_name, msg_type_str)
+            state.schemas_by_topic[topic_name] = msg_type_str
 
     def make_topic_callback(self, topic_name: str):
         """Generate a callback that writes the message to any relevant pipeline."""
@@ -418,12 +356,9 @@ class Recorder(Node):
     #
     # Message Processing
     #
-
-    # Seperate message
     def process_message(self, topic_name: str, message: Any, publish_time: int):
         """Process message for all pipelines that include the topic."""
         for pipeline_name, state in self.pipeline_states.items():
-            cfg = self.pipeline_configs[pipeline_name]
             if topic_name not in state.topics:
                 self.log_debug(
                     lambda: f"Skipping message for pipeline '{pipeline_name}' "
@@ -449,30 +384,17 @@ class Recorder(Node):
                 )
                 continue
 
-            if cfg.output_format == OutputFormat.RAW:
-                self.loop.create_task(
-                    state.writer.write_message(
-                        message=message,
-                        publish_time=publish_time,
-                        topic=topic_name,
-                        schema=schema,
-                    )
-                )
-            else:
-                state.writer.write_message(
-                    topic=topic_name,
-                    schema=schema,
-                    message=message,
-                    publish_time=publish_time,
-                )
+            # Write message to pipeline writer
+            state.writer.write_message(
+                message=message,
+                publish_time=publish_time,
+                topic=topic_name,
+            )
 
-                state.current_size = state.buffer.tell()
-                split_size = self.pipeline_configs[pipeline_name].split_max_size_bytes
-                if split_size and state.current_size >= split_size:
-                    self.upload_pipeline(pipeline_name, state)
+            state.current_size = state.writer.size
 
     #
-    # Pipeline Management and Upload
+    # Timer Callbacks
     #
     def make_timer_callback(self, pipeline_name: str, state: PipelineState):
         """Return a callback that uploads the current pipeline state."""
@@ -483,88 +405,26 @@ class Recorder(Node):
         return _timer_callback
 
     def upload_pipeline(self, pipeline_name: str, state: PipelineState):
-        """Finish current MCAP, upload it, and reset the state."""
-        if not all([state.writer, state.buffer, state.timer]):
+        """Trigger upload for the pipeline writer."""
+        if not state.writer:
             self.log_warn(
-                lambda: f"[{pipeline_name}] Incomplete state "
-                "(writer/buffer/timer) — skipping upload."
+                lambda: f"[{pipeline_name}] No writer available - skipping upload."
             )
             return
 
         if state.is_uploading:
             self.log_warn(
-                lambda: f"[{pipeline_name}] Upload already in progress "
-                "— skipping upload."
+                lambda: f"[{pipeline_name}] Upload already in progress \
+                    - skipping upload."
             )
             return
-
-        if state.current_size == 0:
-            self.log_info(
-                lambda: f"[{pipeline_name}] No new data since last upload"
-                "— skipping upload."
-            )
-            state.timer.reset()
-            return
-
-        # Prevent concurrent uploads between timer and max size triggers
-        state.is_uploading = True
-
-        # Filename index either by increment or timestamp in microseconds
-        filename_mode = self.pipeline_configs[pipeline_name].filename_mode
-        file_index = (
-            state.increment
-            if filename_mode == FilenameMode.INCREMENTAL
-            else (state.first_timestamp or self.get_clock().now().nanoseconds) // 1_000
-        )
-
-        # Finish the MCAP writer
-        state.writer.finish()
-
-        # Upload and reset the state
-        self.upload_mcap(pipeline_name, state.buffer, file_index)
-        self.reset_pipeline_state(pipeline_name, state)
-        state.increment += 1
-
-    def upload_mcap(
-        self, pipeline_name: str, buffer: SpooledTemporaryFile[bytes], file_index: int
-    ):
-        """Upload MCAP to ReductStore."""
-        self.log_info(
-            lambda: f"[{pipeline_name}] MCAP ready. Uploading to ReductStore..."
-        )
 
         try:
-            self.loop.run_until_complete(
-                self.upload_to_reductstore(pipeline_name, buffer, file_index)
-            )
-        except Exception as exc:
-            self.logger.error(f"[{pipeline_name}] Failed to upload MCAP: {exc}")
-
-    async def upload_to_reductstore(
-        self, pipeline_name: str, buffer: SpooledTemporaryFile[bytes], file_index: int
-    ):
-        """Upload the MCAP file to ReductStore in chunks."""
-        content_length = buffer.tell()
-        buffer.seek(0)
-
-        await self.bucket.write(
-            pipeline_name,
-            self.read_in_chunks(buffer),
-            file_index,
-            content_length,
-            content_type="application/mcap",
-            labels=self.pipeline_configs[pipeline_name].static_labels,
-        )
-
-    async def read_in_chunks(
-        self, buffer: SpooledTemporaryFile[bytes], chunk_size: int = 100_000
-    ) -> AsyncGenerator[bytes, None]:
-        """Yield chunks from the buffer."""
-        while True:
-            chunk = buffer.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
+            self.loop.run_until_complete(state.writer.flush_and_upload_batch())
+            if state.timer:
+                state.timer.reset()
+        except Exception:
+            self.log_warn(lambda: f"[{pipeline_name}] Upload failed.")
 
 
 def main():

@@ -25,7 +25,7 @@ from ament_flake8.main import main_with_errors
 def test_flake8():
     """Test that the codebase passes flake8 style checks."""
     config_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "setup.cfg")
+        os.path.join(os.path.dirname(__file__), "..", "..", "setup.cfg")
     )
     rc, errors = main_with_errors(argv=[f"--config={config_path}"])
     assert rc == 0, "Found %d code style errors / warnings:\n" % len(

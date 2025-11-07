@@ -26,12 +26,13 @@ from typing import Any, Dict
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
 
-from .utils import ns_to_us, ros2_type_name
+from ..utils import get_or_create_event_loop, ns_to_us
+from .base import OutputWriter
 
 KB_100 = 100 * 1024
 
 
-class RawOutputWriter:
+class RawOutputWriter(OutputWriter):
     """RawOutput Class for binary CDR."""
 
     def __init__(
@@ -46,8 +47,10 @@ class RawOutputWriter:
         self.pipeline_name = pipeline_name
         self.flush_threshold_bytes = flush_threshold_bytes
         self._batch = Batch()
-        self._batch_bytes: int = 0
+        self._batch_size: int = 0
         self.pipeline_name = pipeline_name
+
+        self._topic_to_msg_type: Dict[str, str] = {}
         if logger is None:
             from rclpy.logging import get_logger
 
@@ -67,43 +70,54 @@ class RawOutputWriter:
             labels=labels,
         )
 
-    async def write_message(self, message: Any, publish_time: int, **kwargs):
-        """Write message to batch or upload to ReductStore."""
+    def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
+        """Write message to batch - synchronous interface."""
         try:
             serialized_data = serialize_message(message)
         except Exception as exc:
-            self.logger.warning(
-                f"[{self.pipeline_name}] Could not serialize message "
-                f"({message.__class__.__name__}): {exc}"
-            )
+            if self.logger:
+                self.logger.warning(
+                    f"[{self.pipeline_name}] Could not serialize message "
+                    f"({message.__class__.__name__}): {exc}"
+                )
             return
 
         timestamp_us = ns_to_us(publish_time)
-        topic_type = ros2_type_name(message)
+
+        msg_type_str = self._topic_to_msg_type.get(topic, "unknown")
         labels = {
-            "type": f"{topic_type} Message",
+            "type": msg_type_str,
+            "topic": topic,
             "serialization": "cdr",
         }
+
+        # For large messages, trigger immediate upload
         if len(serialized_data) >= KB_100:
-            await self.flush_and_upload_batch()
-            await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
+
+            async def upload_large():
+                await self.flush_and_upload_batch()
+                await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
+
+            loop = get_or_create_event_loop()
+            loop.create_task(upload_large())
             return
 
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
-        if self._batch_bytes >= self.flush_threshold_bytes:
-            await self.flush_and_upload_batch()
+        if self.size >= self.flush_threshold_bytes:
+            loop = get_or_create_event_loop()
+            loop.create_task(self.flush_and_upload_batch())
 
     def append_record(
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
     ) -> None:
         """Append raw data to batch."""
-        self._batch_bytes += len(serialized_data)
+        self._batch_size += len(serialized_data)
         self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)
 
     async def flush_and_upload_batch(self) -> None:
         """Flush the batch and upload to ReductStore."""
-        if self._batch_bytes == 0 and not self._batch:
+        if self._batch_size == 0 and not self._batch:
             return
 
         errors = await self.bucket.write_batch(
@@ -115,9 +129,13 @@ class RawOutputWriter:
                 f"Keys: {list(errors.keys())[:5]}..."
             )
         self._batch = Batch()
-        self._batch_bytes = 0
+        self._batch_size = 0
 
-    # async def finish(self) -> None:
-    #     """Flush any remaining records in the batch before shutting down."""
-    #     self.logger.info("Flushing final batch before shutdown...")
-    #     await self.flush_and_opload_batch()
+    def register_message_schema(self, topic_name: str, msg_type_str: str):
+        """Register message schema."""
+        self._topic_to_msg_type[topic_name] = msg_type_str
+
+    @property
+    def size(self) -> int:
+        """Get current batch size for compatibility with MCAP writer."""
+        return self._batch_size

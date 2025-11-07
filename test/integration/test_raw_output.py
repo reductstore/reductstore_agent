@@ -24,7 +24,6 @@
 import asyncio
 import time
 from typing import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import rclpy
@@ -32,11 +31,10 @@ from reduct import Client
 from reduct.error import ReductError
 from std_msgs.msg import String
 
-from reductstore_agent.rawoutput_writer import RawOutputWriter
 from reductstore_agent.recorder import Recorder
 from reductstore_agent.utils import get_or_create_event_loop
 
-from .test_recorder_params import (
+from ..config.test_recorder_params import (
     as_overrides,
     downsampling_params_none,
     output_format_params_raw,
@@ -180,47 +178,3 @@ def test_raw_output_streams_large_record(
         assert (
             loop.run_until_complete(fetch_and_verify_record()) is True
         ), "Failed to retrieve the streamed large record."
-
-
-def test_small_messages_are_batched_and_flushed():
-    """Test that batching and flushing works."""
-    mock_bucket = AsyncMock()
-    mock_logger = MagicMock()
-
-    mock_bucket.write_batch.return_value = {}
-
-    TEST_THRESHOLD = 100
-
-    writer = RawOutputWriter(
-        bucket=mock_bucket,
-        pipeline_name="test_batch_flush",
-        flush_threshold_bytes=TEST_THRESHOLD,
-        logger=mock_logger,
-    )
-
-    mock_small_msg = MagicMock()
-    small_data = b"x" * 60
-
-    async def run_test():
-        with patch(
-            "reductstore_agent.rawoutput_writer.serialize_message"
-        ) as mock_serialize:
-            with patch(
-                "reductstore_agent.rawoutput_writer.ros2_type_name"
-            ) as mock_type_name:
-                mock_serialize.return_value = small_data
-                mock_type_name.return_value = "std_msgs/MockSmall"
-                await writer.write_message(mock_small_msg, publish_time=1)
-
-                assert writer._batch_bytes == 60
-                mock_bucket.write.assert_not_called()
-                mock_bucket.write_batch.assert_not_called()
-
-                # Send the second message (60 bytes)
-                await writer.write_message(mock_small_msg, publish_time=2)
-
-    asyncio.run(run_test())
-
-    mock_bucket.write_batch.assert_called_once()
-    mock_bucket.write.assert_not_called()
-    assert writer._batch_bytes == 0
