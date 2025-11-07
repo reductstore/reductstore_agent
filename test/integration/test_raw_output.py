@@ -27,12 +27,12 @@ from typing import Generator
 
 import pytest
 import rclpy
+from rclpy.parameter import Parameter
 from reduct import Client
 from reduct.error import ReductError
 from std_msgs.msg import String
 
 from reductstore_agent.recorder import Recorder
-from reductstore_agent.utils import get_or_create_event_loop
 
 from ..config.test_recorder_params import (
     as_overrides,
@@ -46,62 +46,57 @@ from ..config.test_recorder_params import (
 @pytest.fixture
 def raw_output_recorder() -> Generator[Recorder, None, None]:
     """Init a raw_output Recorder node."""
-    rec = Recorder(
-        parameter_overrides=as_overrides(
+    additional_params = [Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0)]
+
+    all_overrides = (
+        as_overrides(
             storage_params(),
             pipeline_params(),
             downsampling_params_none(),
             output_format_params_raw(),
         )
+        + additional_params
     )
+
+    rec = Recorder(parameter_overrides=all_overrides)
     yield rec
     rec.destroy_node()
 
 
-@pytest.fixture
-def reduct_client():
-    """Recreating the test bucket before and after the session."""
-    loop = get_or_create_event_loop()
-    client = Client("http://localhost:8383", api_token="test_token")
-
-    async def cleanup():
-        bucket_list = await client.list()
-        if "test_bucket" in [bucket.name for bucket in bucket_list]:
-            bucket = await client.get_bucket("test_bucket")
-            await bucket.remove()
-
-    yield client
-
-    loop.run_until_complete(cleanup())
-
-
-def publish_and_spin(
+def publish_and_spin_simple(
     publisher_node,
     publisher,
     recorder,
-    n_msgs=3,
-    n_cycles=2,
-    msg_to_send: String = None,
+    message: String,
+    wait_for_subscription: bool = True,
 ):
-    """Publish messages and spin the nodes to allow the recorder to process them."""
+    """Publish a single message and spin nodes to process it."""
     logger = publisher_node.get_logger()
 
-    for _ in range(n_cycles):
-        for i in range(n_msgs):
-
-            # This logic is now corrected
-            msg = String()
-            if msg_to_send:
-                msg = msg_to_send
-            else:
-                msg.data = f"test_data_{i}"
-
-            logger.info(f"--> Publishing message (size: {len(msg.data)})")
-            publisher.publish(msg)
-            rclpy.spin_once(publisher_node, timeout_sec=0.2)
+    if wait_for_subscription:
+        # Wait for recorder to be ready and subscribed
+        logger.info("Waiting for recorder to initialize and subscribe...")
+        for _ in range(15):  # Up to 3 seconds
             rclpy.spin_once(recorder, timeout_sec=0.2)
+            # Check if subscriptions are active by looking at subscriber count
+            if len(recorder.subscribers) > 0:
+                logger.info(
+                    "Recorder subscription detected, proceeding with publish..."
+                )
+                break
+        else:
+            logger.warning("Recorder subscription not detected, proceeding anyway...")
 
-        rclpy.spin_once(recorder, timeout_sec=2.0)
+    # Publish the message
+    logger.info(f"Publishing message (size: {len(message.data)} bytes)")
+    publisher.publish(message)
+
+    # Allow both nodes to process
+    rclpy.spin_once(publisher_node, timeout_sec=0.1)
+    rclpy.spin_once(recorder, timeout_sec=0.1)
+
+    # Give recorder additional time to process and upload
+    rclpy.spin_once(recorder, timeout_sec=1.0)
 
 
 def generate_large_string(size_kb: int = 150) -> String:
@@ -122,20 +117,16 @@ def test_raw_output_streams_large_record(
 
     large_msg = generate_large_string(size_kb=150)
 
-    print("\n[TEST] Waiting 2.5s for recorder to subscribe...")
-    time.sleep(3)
-    print("[TEST] Publishing large message...")
-
-    publish_and_spin(
+    # Publish the large message and process it
+    publish_and_spin_simple(
         publisher_node,
         publisher,
         raw_output_recorder,
-        n_msgs=5,
-        n_cycles=2,
-        msg_to_send=large_msg,
+        large_msg,
+        wait_for_subscription=True,
     )
 
-    async def fetch_and_verify_record(timeout=5.0, retry_interval=0.5):
+    async def fetch_and_verify_record(timeout=10.0, retry_interval=0.5):
         """Fetch the record and check the stream's integrity, with retries."""
         start_time = time.time()
 
@@ -146,14 +137,18 @@ def test_raw_output_streams_large_record(
                 async for record in bucket.query(ENTRY_NAME, when={"$limit": 1}):
 
                     assert record.labels["serialization"] == "cdr"
+                    assert record.labels["type"] == "std_msgs/msg/String"
+                    assert record.labels["topic"] == "/test/topic"
 
                     data_bytes = await record.read_all()
                     assert len(data_bytes) > (100 * 1024), "Record size is too small"
 
-                    print("[TEST] Record found and verified.")
+                    print("[TEST] Large record found and verified successfully.")
                     return True
 
-                print("[TEST] Record not found yet, retrying...")
+                print(
+                    f"[TEST] Record not found yet, retrying... ({time.time() - start_time:.1f}s elapsed)"
+                )
                 await asyncio.sleep(retry_interval)
 
             except ReductError as e:
@@ -166,7 +161,7 @@ def test_raw_output_streams_large_record(
                 print(f"[TEST] An unexpected error occurred, retrying... {e}")
                 await asyncio.sleep(retry_interval)
 
-        print("[TEST] Timeout: Failed to retrieve record.")
+        print(f"[TEST] Timeout after {timeout}s: Failed to retrieve record.")
         return False
 
     loop = asyncio.get_event_loop()
