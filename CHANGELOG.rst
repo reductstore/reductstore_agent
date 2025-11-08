@@ -21,3 +21,5 @@ Changelog for package reductstore_agent
   Implement minimum recorder agent for ROS 2 MCAP files
 * Merge pull request `#10 <https://github.com/reductstore/reductstore_agent/issues/10>`_ from reductstore/10-add-downsampling-option
   Implement downsampling option per pipeline
+* Merge pull request `#11 <https://github.com/reductstore/reductstore_agent/issues/11>`_ from reductstore/11-support-raw-output
+  Implement raw output format per pipeline
