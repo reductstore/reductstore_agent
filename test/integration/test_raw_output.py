@@ -23,43 +23,10 @@
 
 import asyncio
 import time
-from typing import Generator
 
-import pytest
 import rclpy
-from rclpy.parameter import Parameter
 from reduct.error import ReductError
 from std_msgs.msg import String
-
-from reductstore_agent.recorder import Recorder
-
-from ..config.test_recorder_params import (
-    as_overrides,
-    downsampling_params_none,
-    output_format_params_raw,
-    pipeline_params,
-    storage_params,
-)
-
-
-@pytest.fixture
-def raw_output_recorder() -> Generator[Recorder, None, None]:
-    """Init a raw_output Recorder node."""
-    additional_params = [Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0)]
-
-    all_overrides = (
-        as_overrides(
-            storage_params(),
-            pipeline_params(),
-            downsampling_params_none(),
-            output_format_params_raw(),
-        )
-        + additional_params
-    )
-
-    rec = Recorder(parameter_overrides=all_overrides)
-    yield rec
-    rec.destroy_node()
 
 
 def publish_and_spin_simple(
