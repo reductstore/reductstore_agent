@@ -149,8 +149,8 @@ Each pipeline supports the following parameters:
 * **`downsample_mode`**: Method discards messages. Choose one of:
 
   * `"none"` *(default)* 
-  * `"stride_n"` — Required if downsampling_mode is *"stride"*, only records every *nth* message. Must be >= 2.
-  * `"max_rate_hz"` — Required if downsampling_mode is *"max_rate"*, specifies maximum frequency of recorded messages.
+  * `"stride"` — (with separate parameter stride_n for the stride value) Only records records every *nth* message. Must be >=2.
+  * `"max_rate"` — (with separate parameter max_rate_hz for the rate limit) Specifies maximum frequency of recorded messages.
 
 * **`output_format`**: Choose one of the output formats:
 
