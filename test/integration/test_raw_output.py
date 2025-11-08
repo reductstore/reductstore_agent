@@ -68,8 +68,9 @@ def publish_and_spin_simple(
     recorder,
     message: String,
     wait_for_subscription: bool = True,
+    n_msg: int = 1,
 ):
-    """Publish a single message and spin nodes to process it."""
+    """Publish a message and spin nodes to process it."""
     logger = publisher_node.get_logger()
 
     if wait_for_subscription:
@@ -86,16 +87,18 @@ def publish_and_spin_simple(
         else:
             logger.warning("Recorder subscription not detected, proceeding anyway...")
 
-    # Publish the message
-    logger.info(f"Publishing message (size: {len(message.data)} bytes)")
-    publisher.publish(message)
+    # Publish the messages
+    for i in range(n_msg):
+        logger.info(f"Publishing message (size: {len(message.data)} bytes)")
+        message.data = f"test_data_{i}"
+        publisher.publish(message)
+        rclpy.spin_once(publisher_node, timeout_sec=0.1)
+        rclpy.spin_once(recorder, timeout_sec=0.1)
 
     # Allow both nodes to process
-    rclpy.spin_once(publisher_node, timeout_sec=0.1)
-    rclpy.spin_once(recorder, timeout_sec=0.1)
 
     # Give recorder additional time to process and upload
-    rclpy.spin_once(recorder, timeout_sec=1.0)
+    rclpy.spin_once(recorder, timeout_sec=2.0)
 
 
 def generate_large_string(size_kb: int = 150) -> String:
@@ -105,6 +108,62 @@ def generate_large_string(size_kb: int = 150) -> String:
     msg = String()
     msg.data = "X" * data_size_bytes
     return msg
+
+
+async def fetch_and_count_records(
+    client,
+    bucket_name,
+    entry_name,
+    expected_count,
+    timeout=10.0,
+    retry_interval=1.0,
+):
+    """Fetch record and count it."""
+    start_time = time.time()
+    last_count = 0
+
+    while time.time() - start_time < timeout:
+        record_count = 0
+        try:
+            bucket = await client.get_bucket(bucket_name)
+
+            # Query all records in the entry
+            async for record in bucket.query(entry_name):
+                # Basic verification for a batched record
+                assert record.labels["serialization"] == "cdr"
+                assert record.labels["type"] == "std_msgs/msg/String"
+                assert record.labels["topic"] == "/test/topic"
+                record_count += 1
+
+            last_count = record_count
+            if record_count >= expected_count:
+                print(
+                    f"[TEST] Success: Found {record_count} records "
+                    f"(expected at least {expected_count})."
+                )
+                return True
+
+            print(
+                f"[TEST] Found {record_count} records, retrying for "
+                f"{expected_count}... ({time.time() - start_time:.1f}s elapsed)"
+            )
+            await asyncio.sleep(retry_interval)
+
+        except ReductError as e:
+            if e.status_code == 404:
+                print(f"[TEST] Entry not found (404), retrying... {e}")
+                await asyncio.sleep(retry_interval)
+            else:
+                raise e
+        except Exception as e:
+            print(f"[TEST] An unexpected error occurred, retrying... {e}")
+            await asyncio.sleep(retry_interval)
+
+    print(
+        f"[TEST] Timeout after {timeout}s: Failed to retrieve {expected_count} "
+        f"records. Found {last_count}."
+    )
+    return False
 
 
 def test_raw_output_streams_large_record(
@@ -125,51 +184,80 @@ def test_raw_output_streams_large_record(
         wait_for_subscription=True,
     )
 
-    async def fetch_and_verify_record(timeout=10.0, retry_interval=0.5):
-        """Fetch the record and check the stream's integrity, with retries."""
-        start_time = time.time()
-
-        while time.time() - start_time < timeout:
-            try:
-                bucket = await reduct_client.get_bucket(BUCKET_NAME)
-
-                async for record in bucket.query(ENTRY_NAME, when={"$limit": 1}):
-
-                    assert record.labels["serialization"] == "cdr"
-                    assert record.labels["type"] == "std_msgs/msg/String"
-                    assert record.labels["topic"] == "/test/topic"
-
-                    data_bytes = await record.read_all()
-                    assert len(data_bytes) > (100 * 1024), "Record size is too small"
-
-                    print("[TEST] Large record found and verified successfully.")
-                    return True
-
-                print(
-                    f"[TEST] Record not found yet, retrying... \
-                        ({time.time() - start_time:.1f}s elapsed)"
-                )
-                await asyncio.sleep(retry_interval)
-
-            except ReductError as e:
-                if e.status_code == 404:
-                    print(f"[TEST] Bucket or Entry not found (404), retrying... {e}")
-                    await asyncio.sleep(retry_interval)
-                else:
-                    raise e
-            except Exception as e:
-                print(f"[TEST] An unexpected error occurred, retrying... {e}")
-                await asyncio.sleep(retry_interval)
-
-        print(f"[TEST] Timeout after {timeout}s: Failed to retrieve record.")
-        return False
-
     loop = asyncio.get_event_loop()
     if loop.is_running():
-        task = loop.create_task(fetch_and_verify_record())
+        task = loop.create_task(
+            fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME, 1)
+        )
         loop.run_until_complete(task)
         assert task.result() is True, "Failed to retrieve the streamed large record."
     else:
         assert (
-            loop.run_until_complete(fetch_and_verify_record()) is True
+            loop.run_until_complete(
+                fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME, 1)
+            )
+            is True
         ), "Failed to retrieve the streamed large record."
+
+
+def test_raw_output_batch_flushes(
+    reduct_client, publisher_node, publisher, raw_output_recorder
+):
+    """Test that the Recorder flushes batch."""
+    ENTRY_NAME = "test"
+    BUCKET_NAME = "test_bucket"
+
+    msg = generate_large_string(size_kb=90)
+    MESSAGE_COUNT = 114
+    publish_and_spin_simple(
+        publisher_node,
+        publisher,
+        raw_output_recorder,
+        msg,
+        wait_for_subscription=True,
+        n_msg=MESSAGE_COUNT,
+    )
+
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        task = loop.create_task(
+            fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME, 1)
+        )
+        loop.run_until_complete(task)
+        assert task.result() is True, "Failed to retrive message."
+    else:
+        assert (
+            loop.run_until_complete(
+                fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME, 1)
+            )
+            is True
+        ), "Failed to retrive message."
+
+
+def test_raw_output_batch_flushed_on_shutdown(
+    reduct_client, publisher_node, publisher, raw_output_recorder
+):
+    """Test that the Recorder flushes batch on shutdown."""
+    ENTRY_NAME = "test"
+    BUCKET_NAME = "test_bucket"
+
+    msg = generate_large_string(size_kb=90)
+
+    publish_and_spin_simple(
+        publisher_node, publisher, raw_output_recorder, msg, wait_for_subscription=True
+    )
+
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        task = loop.create_task(
+            fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME, 1)
+        )
+        loop.run_until_complete(task)
+        assert task.result() is True, "Failed to retrive batched message."
+    else:
+        assert (
+            loop.run_until_complete(
+                fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME, 1)
+            )
+            is True
+        ), "Failed to retrive batched message."

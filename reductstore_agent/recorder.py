@@ -424,8 +424,10 @@ class Recorder(Node):
 
         if state.is_uploading:
             self.log_warn(
-                lambda: f"[{pipeline_name}] Upload already in progress \
-                    - skipping upload."
+                lambda: (
+                    f"[{pipeline_name}] Upload already in progress"
+                    " - skipping upload."
+                )
             )
             return
 

@@ -48,7 +48,6 @@ class RawOutputWriter(OutputWriter):
         self.flush_threshold_bytes = flush_threshold_bytes
         self._batch = Batch()
         self._batch_size: int = 0
-        self.pipeline_name = pipeline_name
 
         self._topic_to_msg_type: Dict[str, str] = {}
         if logger is None:
@@ -125,7 +124,8 @@ class RawOutputWriter(OutputWriter):
         )
         if errors:
             self.logger.warning(
-                f"[{self.pipeline_name}] Batch upload failed for {len(errors)} record."
+                f"[{self.pipeline_name}] Batch upload failed for {len(errors)} "
+                f"{'record' if len(errors) == 1 else 'records'}."
                 f"Keys: {list(errors.keys())[:5]}..."
             )
         self._batch = Batch()

@@ -151,15 +151,17 @@ class McapOutputWriter(OutputWriter):
         """Finish current MCAP, upload it, and reset the writer."""
         if self.is_uploading:
             self.logger.warning(
-                f"[{self.pipeline_name}] Upload already in progress \
-                  - skipping upload."
+                (
+                    f"[{self.pipeline_name}] Upload already in progress"
+                    " - skipping upload."
+                )
             )
             return
 
         if self.current_size == 0:
             self.logger.info(
-                f"[{self.pipeline_name}] No new data since last upload \
-                - skipping upload."
+                f"[{self.pipeline_name}] No new data since last upload"
+                " - skipping upload."
             )
             return
 
@@ -182,8 +184,10 @@ class McapOutputWriter(OutputWriter):
             await self._upload_to_reductstore(file_index)
 
             self.logger.info(
-                f"[{self.pipeline_name}] MCAP uploaded successfully \
-                  (size: {self.current_size} bytes)"
+                (
+                    f"[{self.pipeline_name}] MCAP uploaded successfully"
+                    f" (size: {self.current_size} bytes)"
+                )
             )
 
             # Increment for next segment
