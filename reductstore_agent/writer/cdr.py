@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Raw output format logic per pipeline."""
+"""CDR output format logic per pipeline."""
 
 
 from typing import Any, Dict
@@ -32,8 +32,8 @@ from .base import OutputWriter
 KB_100 = 100 * 1024
 
 
-class RawOutputWriter(OutputWriter):
-    """RawOutput Class for binary CDR."""
+class CdrOutputWriter(OutputWriter):
+    """CDROutput Class for binary CDR."""
 
     def __init__(
         self,
@@ -42,7 +42,7 @@ class RawOutputWriter(OutputWriter):
         flush_threshold_bytes: int = 10 * 1024 * 1024,  # i.e. 10MB
         logger=None,
     ):
-        """Initialize RawOutput writer."""
+        """Initialize CDROutput writer."""
         self.bucket = bucket
         self.pipeline_name = pipeline_name
         self.flush_threshold_bytes = flush_threshold_bytes
@@ -53,7 +53,7 @@ class RawOutputWriter(OutputWriter):
         if logger is None:
             from rclpy.logging import get_logger
 
-            self.logger = get_logger(f"RawOutputWriter[{pipeline_name}]")
+            self.logger = get_logger(f"CdrOutputWriter[{pipeline_name}]")
         else:
             self.logger = logger
 

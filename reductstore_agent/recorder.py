@@ -177,10 +177,10 @@ class Recorder(Node):
     #
     def init_pipeline_writers(self):
         """
-        Create an MCAP/RAW writer for each pipeline.
+        Create an MCAP/CDR writer for each pipeline.
 
         For each pipeline, this method creates a timer that fires after max_duration_s
-        and a callback to upload the MCAP/RAW data.
+        and a callback to upload the MCAP/CDR data.
         """
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)

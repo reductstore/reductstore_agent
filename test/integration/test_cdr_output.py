@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Test raw_output functionality."""
+"""Test cdr_output functionality."""
 
 import rclpy
 from std_msgs.msg import String
@@ -88,15 +88,15 @@ async def fetch_and_count_records(
     return output
 
 
-# def test_raw_output_streams_large_record(
-#     reduct_client, publisher_node, publisher, raw_output_recorder
+# def test_cdr_output_streams_large_record(
+#     reduct_client, publisher_node, publisher, cdr_output_recorder
 # ):
 #     """Test that Recorder streams large messages immediately."""
 #     large_msg = generate_large_string(size_kb=150)
 #     publish_and_spin_messages(
 #         publisher_node,
 #         publisher,
-#         raw_output_recorder,
+#         cdr_output_recorder,
 #         large_msg,
 #         wait_for_subscription=True,
 #     )
@@ -116,8 +116,8 @@ async def fetch_and_count_records(
 #     assert len(count) == EXPECTED_COUNT
 
 
-def test_raw_output_batch_flushes(
-    reduct_client, publisher_node, publisher, raw_output_recorder
+def test_cdr_output_batch_flushes(
+    reduct_client, publisher_node, publisher, cdr_output_recorder
 ):
     """Test that the Recorder flushes batch."""
     ENTRY_NAME = "test"
@@ -128,7 +128,7 @@ def test_raw_output_batch_flushes(
     publish_and_spin_messages(
         publisher_node,
         publisher,
-        raw_output_recorder,
+        cdr_output_recorder,
         msg,
         wait_for_subscription=True,
         n_msg=MESSAGE_COUNT,
@@ -142,8 +142,8 @@ def test_raw_output_batch_flushes(
     assert len(count) == MESSAGE_COUNT
 
 
-def test_raw_output_batch_flushed_on_shutdown(
-    reduct_client, publisher_node, publisher, raw_output_recorder
+def test_cdr_output_batch_flushed_on_shutdown(
+    reduct_client, publisher_node, publisher, cdr_output_recorder
 ):
     """Test that the Recorder flushes batch on shutdown."""
     ENTRY_NAME = "test"
@@ -152,7 +152,7 @@ def test_raw_output_batch_flushed_on_shutdown(
     msg = generate_large_string(size_kb=90)
 
     publish_and_spin_messages(
-        publisher_node, publisher, raw_output_recorder, msg, wait_for_subscription=True
+        publisher_node, publisher, cdr_output_recorder, msg, wait_for_subscription=True
     )
     loop = get_or_create_event_loop()
     count = loop.run_until_complete(

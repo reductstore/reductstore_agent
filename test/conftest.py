@@ -36,7 +36,7 @@ from reductstore_agent.utils import get_or_create_event_loop
 from .config.test_recorder_params import (
     as_overrides,
     downsampling_params_none,
-    output_format_params_raw,
+    output_format_params_cdr,
     pipeline_params,
     storage_params,
 )
@@ -286,8 +286,8 @@ def labels_recorder() -> Generator[Recorder, None, None]:
 
 
 @pytest.fixture
-def raw_output_recorder() -> Generator[Recorder, None, None]:
-    """Init a raw_output Recorder node."""
+def cdr_output_recorder() -> Generator[Recorder, None, None]:
+    """Init a cdr_output Recorder node."""
     additional_params = [Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0)]
 
     all_overrides = (
@@ -295,7 +295,7 @@ def raw_output_recorder() -> Generator[Recorder, None, None]:
             storage_params(),
             pipeline_params(),
             downsampling_params_none(),
-            output_format_params_raw(),
+            output_format_params_cdr(),
         )
         + additional_params
     )

@@ -106,7 +106,7 @@ def downsampling_params_none():
     ]
 
 
-def output_format_params_raw():
+def output_format_params_cdr():
     """Return a list of valid output_format params for 'none'."""
     return [Parameter("pipelines.test.output_format", Parameter.Type.STRING, "raw")]
 
@@ -174,7 +174,7 @@ def get_all_output_modes():
     """Return a list of tuples: (output_format, param_list_function)."""
     return [
         ("mcap", output_format_params_mcap),
-        ("raw", output_format_params_raw),
+        ("raw", output_format_params_cdr),
     ]
 
 

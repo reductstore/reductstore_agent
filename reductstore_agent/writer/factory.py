@@ -25,7 +25,7 @@ from reduct import Bucket
 from ..models import OutputFormat, PipelineConfig
 from .base import OutputWriter
 from .mcap import McapOutputWriter
-from .raw import RawOutputWriter
+from .cdr import CdrOutputWriter
 
 
 def create_writer(
@@ -58,8 +58,8 @@ def create_writer(
             config=config,
             logger=logger,
         )
-    elif config.output_format == OutputFormat.RAW:
-        return RawOutputWriter(
+    elif config.output_format == OutputFormat.CDR:
+        return CdrOutputWriter(
             bucket=bucket,
             pipeline_name=pipeline_name or "default",
             logger=logger,

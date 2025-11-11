@@ -87,7 +87,7 @@ class OutputFormat(str, Enum):
     """Output format per pipeline."""
 
     MCAP = "mcap"
-    RAW = "raw"
+    CDR = "cdr"
 
 
 class PipelineConfig(BaseModel):

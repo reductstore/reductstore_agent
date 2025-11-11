@@ -155,7 +155,7 @@ Each pipeline supports the following parameters:
 * **`output_format`**: Choose one of the output formats:
 
   * `"mcap"` *(default)* — Send mcap files to ReductStore
-  * `"raw"` — Send binary CDR to ReductStore
+  * `"cdr"` — Send binary CDR to ReductStore
 
 ## Snap Package
 
