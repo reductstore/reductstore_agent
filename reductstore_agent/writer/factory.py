@@ -24,8 +24,8 @@ from reduct import Bucket
 
 from ..models import OutputFormat, PipelineConfig
 from .base import OutputWriter
-from .mcap import McapOutputWriter
 from .cdr import CdrOutputWriter
+from .mcap import McapOutputWriter
 
 
 def create_writer(
