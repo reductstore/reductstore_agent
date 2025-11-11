@@ -58,6 +58,7 @@ def publish_and_spin_messages(
         # Allow both nodes to process
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
         rclpy.spin_once(recorder, timeout_sec=0.1)
+        rclpy.spin_once(recorder, timeout_sec=0.1)
 
     # Give recorder additional time to process and upload
     rclpy.spin_once(recorder, timeout_sec=2.0)
@@ -88,32 +89,28 @@ async def fetch_and_count_records(
     return output
 
 
-# def test_cdr_output_streams_large_record(
-#     reduct_client, publisher_node, publisher, cdr_output_recorder
-# ):
-#     """Test that Recorder streams large messages immediately."""
-#     large_msg = generate_large_string(size_kb=150)
-#     publish_and_spin_messages(
-#         publisher_node,
-#         publisher,
-#         cdr_output_recorder,
-#         large_msg,
-#         wait_for_subscription=True,
-#     )
-#     ENTRY_NAME = "test"
-#     BUCKET_NAME = "test_bucket"
-#     EXPECTED_COUNT = 1
+def test_cdr_output_streams_large_record(
+    reduct_client, publisher_node, publisher, cdr_output_recorder
+):
+    """Test that Recorder streams large messages immediately."""
+    large_msg = generate_large_string(size_kb=150)
+    publish_and_spin_messages(
+        publisher_node,
+        publisher,
+        cdr_output_recorder,
+        large_msg,
+        wait_for_subscription=True,
+    )
+    ENTRY_NAME = "test"
+    BUCKET_NAME = "test_bucket"
+    EXPECTED_COUNT = 1
 
-#     loop = get_or_create_event_loop()
-#     count = loop.run_until_complete(
-#         fetch_and_count_records(
-#             reduct_client,
-#             BUCKET_NAME,
-#             ENTRY_NAME
-#         )
-#     )
+    loop = get_or_create_event_loop()
+    count = loop.run_until_complete(
+        fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
+    )
 
-#     assert len(count) == EXPECTED_COUNT
+    assert len(count) == EXPECTED_COUNT
 
 
 def test_cdr_output_batch_flushes(

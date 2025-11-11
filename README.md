@@ -49,6 +49,8 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
         split:
           max_duration_s: 3600
           max_size_bytes: 10000
+        downsample:
+          stride_n:
 ```
 
 See the [Configuration](#configuration) section for details on available parameters.
@@ -149,7 +151,7 @@ Each pipeline supports the following parameters:
 * **`downsample_mode`**: Method discards messages. Choose one of:
 
   * `"none"` *(default)* 
-  * `"stride"` — (with separate parameter stride_n for the stride value) Only records records every *nth* message. Must be >=2.
+  * `"stride"` — (with separate parameter stride_n for the stride value) Only records records every `stride_n` message. Must be >=2.
   * `"max_rate"` — (with separate parameter max_rate_hz for the rate limit) Specifies maximum frequency of recorded messages.
 
 * **`output_format`**: Choose one of the output formats:

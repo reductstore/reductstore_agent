@@ -65,7 +65,6 @@ class CdrOutputWriter(OutputWriter):
             entry_name=self.pipeline_name,
             timestamp=timestamp_us,
             data=serialized_data,
-            content_length=len(serialized_data),
             labels=labels,
         )
 
@@ -99,7 +98,6 @@ class CdrOutputWriter(OutputWriter):
 
             loop = get_or_create_event_loop()
             loop.create_task(upload_large())
-            return
 
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
