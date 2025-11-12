@@ -25,7 +25,7 @@ from typing import Any, Dict
 
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
-
+import traceback
 from ..utils import get_or_create_event_loop, ns_to_us
 from .base import OutputWriter
 
@@ -48,6 +48,7 @@ class CdrOutputWriter(OutputWriter):
         self.flush_threshold_bytes = flush_threshold_bytes
         self._batch = Batch()
         self._batch_size: int = 0
+        self.is_flushing = False
 
         self._topic_to_msg_type: Dict[str, str] = {}
         if logger is None:
@@ -90,20 +91,22 @@ class CdrOutputWriter(OutputWriter):
         }
 
         # For large messages, trigger immediate upload
-        if len(serialized_data) >= KB_100:
 
+        # Get current loop
+        loop = get_or_create_event_loop()
+        if len(serialized_data) >= KB_100:
+            self.logger.info("shouldnt be here")
             async def upload_large():
                 await self.flush_and_upload_batch()
                 await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
 
-            loop = get_or_create_event_loop()
-            loop.create_task(upload_large())
+            loop.run_until_complete(upload_large())
 
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
-        if self.size >= self.flush_threshold_bytes:
-            loop = get_or_create_event_loop()
-            loop.create_task(self.flush_and_upload_batch())
+        if self._batch_size >= self.flush_threshold_bytes:
+            self.logger.info("Threshold triggered")
+            loop.run_until_complete(self.flush_and_upload_batch())
 
     def append_record(
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
@@ -114,20 +117,20 @@ class CdrOutputWriter(OutputWriter):
 
     async def flush_and_upload_batch(self) -> None:
         """Flush the batch and upload to ReductStore."""
-        if self._batch_size == 0 and not self._batch:
+        if self._batch_size == 0:
             return
-
-        errors = await self.bucket.write_batch(
-            entry_name=self.pipeline_name, batch=self._batch
-        )
-        if errors:
-            self.logger.warning(
-                f"[{self.pipeline_name}] Batch upload failed for {len(errors)} "
-                f"{'record' if len(errors) == 1 else 'records'}."
-                f"Keys: {list(errors.keys())[:5]}..."
+        self.is_flushing = True
+        try:
+            await self.bucket.write_batch(
+                entry_name=self.pipeline_name, batch=self._batch
             )
-        self._batch = Batch()
-        self._batch_size = 0
+            self.logger.info("Uploading batch")
+            self._batch = Batch()
+            self._batch_size = 0
+        except Exception as exc:
+            self.logger.error("Failed to upload")
+        finally:
+            self.is_flushing = False
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register message schema."""

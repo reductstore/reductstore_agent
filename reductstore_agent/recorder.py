@@ -75,7 +75,7 @@ class Recorder(Node):
         delay = self.load_delay_config()
         if delay <= 0.0:
             self.setup_topic_subscriptions()
-            self.start_pipeline_timers()
+            # self.start_pipeline_timers()
             return
 
         def _delayed_setup():
@@ -410,6 +410,7 @@ class Recorder(Node):
         """Return a callback that uploads the current pipeline state."""
 
         def _timer_callback():
+            print("Hello")
             self.upload_pipeline(pipeline_name, state)
 
         return _timer_callback
@@ -432,6 +433,7 @@ class Recorder(Node):
             return
 
         try:
+            self.logger.info("Test")
             self.loop.run_until_complete(state.writer.flush_and_upload_batch())
             if state.timer:
                 state.timer.reset()

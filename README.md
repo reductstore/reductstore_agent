@@ -50,7 +50,8 @@ The agent is configured using a YAML file. Each pipeline is an independent loggi
           max_duration_s: 3600
           max_size_bytes: 10000
         downsample:
-          stride_n:
+          downsampling_mode: stride
+          stride_n: 5
 ```
 
 See the [Configuration](#configuration) section for details on available parameters.
