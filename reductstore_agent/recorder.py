@@ -34,7 +34,7 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 
 from .downsampler import Downsampler
-from .models import PipelineConfig, StorageConfig
+from .models import OutputFormat, PipelineConfig, StorageConfig
 from .state import PipelineState
 from .utils import get_or_create_event_loop
 from .writer import create_writer
@@ -75,7 +75,7 @@ class Recorder(Node):
         delay = self.load_delay_config()
         if delay <= 0.0:
             self.setup_topic_subscriptions()
-            # self.start_pipeline_timers()
+            self.start_pipeline_timers()
             return
 
         def _delayed_setup():
@@ -196,12 +196,16 @@ class Recorder(Node):
                 downsampler=Downsampler(cfg),
             )
 
-            timer = self.create_timer(
-                float(duration),
-                self.make_timer_callback(pipeline_name, state),
-                autostart=False,
-            )
-            state.timer = timer
+            if cfg.output_format == OutputFormat.MCAP:
+                timer = self.create_timer(
+                    float(duration),
+                    self.make_timer_callback(pipeline_name, state),
+                    autostart=False,
+                )
+                state.timer = timer
+            else:
+                # No need for a timer for CDR
+                state.timer = None
 
             self.pipeline_states[pipeline_name] = state
 
@@ -433,12 +437,38 @@ class Recorder(Node):
             return
 
         try:
-            self.logger.info("Test")
             self.loop.run_until_complete(state.writer.flush_and_upload_batch())
             if state.timer:
                 state.timer.reset()
         except Exception:
             self.log_warn(lambda: f"[{pipeline_name}] Upload failed.")
+
+    #
+    # Flush Batch on Shutdown
+    #
+    def _on_shutdown_flush(self):
+        """Flush all pending batches before node destruction."""
+        try:
+            loop = get_or_create_event_loop()
+
+            async def _flush_all():
+                for name, state in self.pipeline_states.items():
+                    writer = getattr(state, "writer", None)
+                    flush = getattr(writer, "flush_and_upload_batch", None)
+                    if callable(flush):
+                        self.logger().info(f"[{name}] Flushing pipeline on shutdown …")
+                        try:
+                            await flush()
+                        except Exception as exc:
+                            self.get_logger().error(
+                                f"[{name}] Shutdown flush failed: {exc}"
+                            )
+
+            # schedule and run flush synchronously on shutdown
+            loop.run_until_complete(_flush_all())
+
+        except Exception as exc:
+            self.logger().error(f"Shutdown flush failed: {exc}")
 
 
 def main():

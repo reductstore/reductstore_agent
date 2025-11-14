@@ -25,7 +25,7 @@ from typing import Any, Dict
 
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
-import traceback
+
 from ..utils import get_or_create_event_loop, ns_to_us
 from .base import OutputWriter
 
@@ -39,15 +39,16 @@ class CdrOutputWriter(OutputWriter):
         self,
         bucket: Bucket,
         pipeline_name: str,
-        flush_threshold_bytes: int = 10 * 1024 * 1024,  # i.e. 10MB
+        flush_threshold_bytes: int = 5 * 1024 * 1024,  # i.e. 2MB
         logger=None,
+        recorder_node=None,
     ):
         """Initialize CDROutput writer."""
         self.bucket = bucket
         self.pipeline_name = pipeline_name
         self.flush_threshold_bytes = flush_threshold_bytes
         self._batch = Batch()
-        self._batch_size: int = 0
+        self._batch_size_bytes: int = 0
         self.is_flushing = False
 
         self._topic_to_msg_type: Dict[str, str] = {}
@@ -96,6 +97,7 @@ class CdrOutputWriter(OutputWriter):
         loop = get_or_create_event_loop()
         if len(serialized_data) >= KB_100:
             self.logger.info("shouldnt be here")
+
             async def upload_large():
                 await self.flush_and_upload_batch()
                 await self.upload_to_reductstore(serialized_data, timestamp_us, labels)
@@ -104,7 +106,7 @@ class CdrOutputWriter(OutputWriter):
 
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
-        if self._batch_size >= self.flush_threshold_bytes:
+        if self._batch_size_bytes >= self.flush_threshold_bytes:
             self.logger.info("Threshold triggered")
             loop.run_until_complete(self.flush_and_upload_batch())
 
@@ -112,23 +114,32 @@ class CdrOutputWriter(OutputWriter):
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
     ) -> None:
         """Append raw data to batch."""
-        self._batch_size += len(serialized_data)
+        self._batch_size_bytes += len(serialized_data)
         self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)
 
     async def flush_and_upload_batch(self) -> None:
         """Flush the batch and upload to ReductStore."""
-        if self._batch_size == 0:
+        if self._batch_size_bytes == 0:
             return
+        if self.is_flushing:
+            self.logger.info("Already flushing. Returning ...")
+            return
+
         self.is_flushing = True
+
         try:
-            await self.bucket.write_batch(
-                entry_name=self.pipeline_name, batch=self._batch
-            )
-            self.logger.info("Uploading batch")
+            batch_to_send = self._batch
             self._batch = Batch()
-            self._batch_size = 0
+            self._batch_size_bytes = 0
+            errors = await self.bucket.write_batch(
+                entry_name=self.pipeline_name, batch=batch_to_send
+            )
+            if errors:
+                self.logger.warning("Error with writing batch to bucket.")
+            else:
+                self.logger.info("Uploaded batch.")
         except Exception as exc:
-            self.logger.error("Failed to upload")
+            self.logger.error(f"[{self.pipeline_name}]Failed to upload batch: {exc}")
         finally:
             self.is_flushing = False
 
@@ -139,4 +150,4 @@ class CdrOutputWriter(OutputWriter):
     @property
     def size(self) -> int:
         """Get current batch size for compatibility with MCAP writer."""
-        return self._batch_size
+        return self._batch_size_bytes
