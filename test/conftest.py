@@ -301,5 +301,9 @@ def cdr_output_recorder() -> Generator[Recorder, None, None]:
     )
 
     rec = Recorder(parameter_overrides=all_overrides)
-    yield rec
-    rec.destroy_node()
+    try:
+        yield rec
+    finally:
+        # Only clean up if shutdown hasn't already been called in the test
+        if rclpy.ok():
+            rec.destroy_node()

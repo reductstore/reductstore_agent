@@ -103,14 +103,13 @@ def test_cdr_output_streams_large_record(
     )
     ENTRY_NAME = "test"
     BUCKET_NAME = "test_bucket"
-    EXPECTED_COUNT = 1
 
     loop = get_or_create_event_loop()
     count = loop.run_until_complete(
         fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
     )
 
-    assert len(count) == EXPECTED_COUNT
+    assert len(count) == 1
 
 
 def test_cdr_output_batch_flushes(
@@ -138,21 +137,27 @@ def test_cdr_output_batch_flushes(
     assert len(count) == MESSAGE_COUNT
 
 
-# def test_cdr_output_batch_flushed_on_shutdown(
-#     reduct_client, publisher_node, publisher, cdr_output_recorder
-# ):
-#     """Test that the Recorder streams and flushes batch on shutdown."""
-#     ENTRY_NAME = "test"
-#     BUCKET_NAME = "test_bucket"
+def test_cdr_output_batch_flushed_on_shutdown(
+    reduct_client, publisher_node, publisher, cdr_output_recorder
+):
+    """Test that the Recorder streams and flushes batch on shutdown."""
+    ENTRY_NAME = "test"
+    BUCKET_NAME = "test_bucket"
 
-#     msg = generate_large_string(size_kb=90)
-
-#     publish_and_spin_messages(
-#       publisher_node, publisher, cdr_output_recorder, msg, wait_for_subscription=True
-#     )
-#     loop = get_or_create_event_loop()
-#     count = loop.run_until_complete(
-#         fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
-#     )
-
-#     assert len(count) == 1
+    msg = generate_large_string(size_kb=90)
+    publish_and_spin_messages(
+        publisher_node,
+        publisher,
+        cdr_output_recorder,
+        msg,
+        wait_for_subscription=True,
+        n_msg=1,
+    )
+    # Simulate shutdown
+    for state in cdr_output_recorder.pipeline_states.values():
+        state.writer.flush_on_shutdown()
+    loop = get_or_create_event_loop()
+    count = loop.run_until_complete(
+        fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
+    )
+    assert len(count) == 1

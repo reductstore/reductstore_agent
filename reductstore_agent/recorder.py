@@ -204,8 +204,9 @@ class Recorder(Node):
                 )
                 state.timer = timer
             else:
-                # No need for a timer for CDR
+                # Add shutdown callback for flushing
                 state.timer = None
+                self.context.on_shutdown(writer.flush_on_shutdown)
 
             self.pipeline_states[pipeline_name] = state
 
@@ -442,33 +443,6 @@ class Recorder(Node):
                 state.timer.reset()
         except Exception:
             self.log_warn(lambda: f"[{pipeline_name}] Upload failed.")
-
-    #
-    # Flush Batch on Shutdown
-    #
-    def _on_shutdown_flush(self):
-        """Flush all pending batches before node destruction."""
-        try:
-            loop = get_or_create_event_loop()
-
-            async def _flush_all():
-                for name, state in self.pipeline_states.items():
-                    writer = getattr(state, "writer", None)
-                    flush = getattr(writer, "flush_and_upload_batch", None)
-                    if callable(flush):
-                        self.logger().info(f"[{name}] Flushing pipeline on shutdown …")
-                        try:
-                            await flush()
-                        except Exception as exc:
-                            self.get_logger().error(
-                                f"[{name}] Shutdown flush failed: {exc}"
-                            )
-
-            # schedule and run flush synchronously on shutdown
-            loop.run_until_complete(_flush_all())
-
-        except Exception as exc:
-            self.logger().error(f"Shutdown flush failed: {exc}")
 
 
 def main():

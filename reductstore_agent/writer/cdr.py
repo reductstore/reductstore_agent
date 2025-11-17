@@ -158,6 +158,11 @@ class CdrOutputWriter(OutputWriter):
         """Register message schema."""
         self._topic_to_msg_type[topic_name] = msg_type_str
 
+    def flush_on_shutdown(self):
+        """Flush the batch on shutdown."""
+        loop = get_or_create_event_loop()
+        loop.run_until_complete(self.flush_and_upload_batch())
+
     @property
     def size(self) -> int:
         """Get current batch size for compatibility with MCAP writer."""
