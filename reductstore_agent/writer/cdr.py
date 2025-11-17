@@ -26,10 +26,8 @@ from typing import Any, Dict
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
 
-from ..utils import get_or_create_event_loop, ns_to_us
+from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
-
-KB_100 = 100 * 1024
 
 
 class CdrOutputWriter(OutputWriter):
@@ -50,6 +48,7 @@ class CdrOutputWriter(OutputWriter):
         self._batch = Batch()
         self._batch_size_bytes: int = 0
         self.is_flushing = False
+        self._batch_metadata_size: int = 0
 
         self._topic_to_msg_type: Dict[str, str] = {}
         if logger is None:
@@ -72,6 +71,10 @@ class CdrOutputWriter(OutputWriter):
 
     def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
         """Write message to batch - synchronous interface."""
+        KB_100 = 100 * 1024
+        BATCH_MAX_METADATA_SIZE = 8 * 1024
+        BATCH_MAX_RECORDS = 85
+
         try:
             serialized_data = serialize_message(message)
         except Exception as exc:
@@ -91,10 +94,8 @@ class CdrOutputWriter(OutputWriter):
             "serialization": "cdr",
         }
 
-        # For large messages, trigger immediate upload
-
-        # Get current loop
         loop = get_or_create_event_loop()
+        # Stream message if larger than 100KB
         if len(serialized_data) >= KB_100:
             self.logger.info("shouldnt be here")
 
@@ -106,8 +107,17 @@ class CdrOutputWriter(OutputWriter):
 
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
+
         if self._batch_size_bytes >= self.flush_threshold_bytes:
             self.logger.info("Threshold triggered")
+            loop.run_until_complete(self.flush_and_upload_batch())
+
+        elif len(self._batch) >= BATCH_MAX_RECORDS:
+            self.logger.info("Exceeded max records of batch. Uploading batch.")
+            loop.run_until_complete(self.flush_and_upload_batch())
+
+        elif self._batch_metadata_size >= BATCH_MAX_METADATA_SIZE:
+            self.logger.info("Exceeded metadata threshold. Uploading batch.")
             loop.run_until_complete(self.flush_and_upload_batch())
 
     def append_record(
@@ -115,6 +125,7 @@ class CdrOutputWriter(OutputWriter):
     ) -> None:
         """Append raw data to batch."""
         self._batch_size_bytes += len(serialized_data)
+        self._batch_metadata_size += metadata_size(labels)
         self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)
 
     async def flush_and_upload_batch(self) -> None:
