@@ -83,6 +83,13 @@ class DownsamplingMode(str, Enum):
     MAX_RATE = "max_rate"
 
 
+class OutputFormat(str, Enum):
+    """Output format per pipeline."""
+
+    MCAP = "mcap"
+    CDR = "cdr"
+
+
 class PipelineConfig(BaseModel):
     """Configuration for a recording pipeline."""
 
@@ -114,6 +121,8 @@ class PipelineConfig(BaseModel):
     downsampling_mode: DownsamplingMode = Field(default=DownsamplingMode.NONE)
     max_rate_hz: float | None = Field(None, ge=0.0)
     stride_n: int | None = Field(None, ge=2)
+
+    output_format: OutputFormat = Field(default=OutputFormat.MCAP)
 
     @field_validator("include_topics", "exclude_topics")
     @classmethod

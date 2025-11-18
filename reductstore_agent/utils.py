@@ -21,6 +21,7 @@
 """Utility functions for the reductstore_agent package."""
 
 import asyncio
+import json
 import re
 from asyncio import AbstractEventLoop
 
@@ -77,3 +78,13 @@ def parse_bytes_with_si_units(value: str | int | float) -> int:
         raise ValueError(f"Byte value must be non-negative, got {result}")
 
     return result
+
+
+def ns_to_us(ns: int) -> int:
+    """Round nanoseconds to microseconds."""
+    return int(ns / 1_000.0)
+
+
+def metadata_size(labels: dict) -> int:
+    """Return byte size of metadata."""
+    return len(json.dumps(labels, separators=(",", ":")).encode("utf-8"))

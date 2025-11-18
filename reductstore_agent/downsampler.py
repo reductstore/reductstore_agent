@@ -20,7 +20,7 @@
 
 """Downsampler class for the Recorder node."""
 
-from .config_models import DownsamplingMode, PipelineConfig
+from .models import DownsamplingMode, PipelineConfig
 
 
 class Downsampler:

@@ -33,6 +33,14 @@ from std_msgs.msg import String
 from reductstore_agent.recorder import Recorder
 from reductstore_agent.utils import get_or_create_event_loop
 
+from .config.test_recorder_params import (
+    as_overrides,
+    downsampling_params_none,
+    output_format_params_cdr,
+    pipeline_params,
+    storage_params,
+)
+
 
 @pytest.fixture
 def reduct_client():
@@ -275,3 +283,27 @@ def labels_recorder() -> Generator[Recorder, None, None]:
     rec = Recorder(parameter_overrides=params)
     yield rec
     rec.destroy_node()
+
+
+@pytest.fixture
+def cdr_output_recorder() -> Generator[Recorder, None, None]:
+    """Init a cdr_output Recorder node."""
+    additional_params = [Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0)]
+
+    all_overrides = (
+        as_overrides(
+            storage_params(),
+            pipeline_params(),
+            downsampling_params_none(),
+            output_format_params_cdr(),
+        )
+        + additional_params
+    )
+
+    rec = Recorder(parameter_overrides=all_overrides)
+    try:
+        yield rec
+    finally:
+        # Only clean up if shutdown hasn't already been called in the test
+        if rclpy.ok():
+            rec.destroy_node()

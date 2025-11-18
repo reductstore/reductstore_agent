@@ -80,7 +80,7 @@ def downsampling_params_stride():
 
 
 def downsampling_params_max_rate():
-    """Return a list of valid downsampling parameters for 'max_rate'."""
+    """Return a list of valid downsampling params for 'max_rate'."""
     return [
         Parameter(
             "pipelines.test.downsampling_mode",
@@ -96,7 +96,7 @@ def downsampling_params_max_rate():
 
 
 def downsampling_params_none():
-    """Return a list of valid downsampling parameters for 'none'."""
+    """Return a list of valid downsampling params for 'none'."""
     return [
         Parameter(
             "pipelines.test.downsampling_mode",
@@ -106,7 +106,22 @@ def downsampling_params_none():
     ]
 
 
-def as_overrides(storage_dict, pipeline_params=None, downsampling_params=None):
+def output_format_params_cdr():
+    """Return a list of valid output_format params for 'none'."""
+    return [Parameter("pipelines.test.output_format", Parameter.Type.STRING, "cdr")]
+
+
+def output_format_params_mcap():
+    """Return a list of valid output_format params for 'mcap'."""
+    return [Parameter("pipelines.test.output_format", Parameter.Type.STRING, "mcap")]
+
+
+def as_overrides(
+    storage_dict,
+    pipeline_params=None,
+    downsampling_params=None,
+    output_format_params=None,
+):
     """Convert storage parameters and combine with pipeline parameters."""
     overrides = []
     for key, value in storage_dict.items():
@@ -122,6 +137,9 @@ def as_overrides(storage_dict, pipeline_params=None, downsampling_params=None):
             overrides.append(param)
     if downsampling_params:
         for param in downsampling_params:
+            overrides.append(param)
+    if output_format_params:
+        for param in output_format_params:
             overrides.append(param)
 
     return overrides
@@ -143,35 +161,47 @@ def test_recorder_valid_pipeline_params():
     node.destroy_node()
 
 
-def test_recorder_valid_none_params():
-    """Test that the Recorder node can be created with downsampling mode 'none'."""
+def get_all_downsampling_modes():
+    """Return a list of tuples: (mode_name, params_list_function)."""
+    return [
+        ("none,", downsampling_params_none),
+        ("stride", downsampling_params_stride),
+        ("max_rate", downsampling_params_max_rate),
+    ]
+
+
+def get_all_output_modes():
+    """Return a list of tuples: (output_format, param_list_function)."""
+    return [
+        ("mcap", output_format_params_mcap),
+        ("cdr", output_format_params_cdr),
+    ]
+
+
+@pytest.mark.parametrize("mode_name, downsampling_func", get_all_downsampling_modes())
+def test_recorder_valid_all_downsampling_modes(mode_name, downsampling_func):
+    """Test that the Recorder node can be created with all downsampling_modes."""
+    downsampling_params = downsampling_func()
     node = Recorder(
         parameter_overrides=as_overrides(
-            storage_params(),
-            pipeline_params(),
-            downsampling_params_none(),
+            storage_params(), pipeline_params(), downsampling_params
         )
     )
     assert node.get_name() == "recorder"
     node.destroy_node()
 
 
-def test_recorder_valid_stride_params():
-    """Test that the Recorder node can be created with downsampling mode 'stride'."""
+@pytest.mark.parametrize("output_format, output_format_func", get_all_output_modes())
+@pytest.mark.parametrize("mode_name, downsampling_func", get_all_downsampling_modes())
+def test_recorder_valid_all_configuration(
+    output_format, output_format_func, mode_name, downsampling_func
+):
+    """Test that Recoder node can be created with all valid configurations."""
+    downsampling_params = downsampling_func()
+    output_params = output_format_func()
     node = Recorder(
         parameter_overrides=as_overrides(
-            storage_params(), pipeline_params(), downsampling_params_stride()
-        )
-    )
-    assert node.get_name() == "recorder"
-    node.destroy_node()
-
-
-def test_recorder_valid_max_hz_params():
-    """Test that the Recorder node can be created with downsampling mode 'max_rate'."""
-    node = Recorder(
-        parameter_overrides=as_overrides(
-            storage_params(), pipeline_params(), downsampling_params_max_rate()
+            storage_params(), pipeline_params(), downsampling_params, output_params
         )
     )
     assert node.get_name() == "recorder"
