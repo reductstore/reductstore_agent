@@ -29,6 +29,10 @@ from reduct import Batch, Bucket
 from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
 
+KB_100 = 100 * 1024
+BATCH_MAX_METADATA_SIZE = 8 * 1024
+BATCH_MAX_RECORDS = 85
+
 
 class CdrOutputWriter(OutputWriter):
     """CDROutput Class for binary CDR."""
@@ -39,15 +43,14 @@ class CdrOutputWriter(OutputWriter):
         pipeline_name: str,
         flush_threshold_bytes: int = 5 * 1024 * 1024,  # i.e. 2MB
         logger=None,
-        recorder_node=None,
     ):
         """Initialize CDROutput writer."""
         self.bucket = bucket
         self.pipeline_name = pipeline_name
-        self.flush_threshold_bytes = flush_threshold_bytes
+        self._flush_threshold_bytes = flush_threshold_bytes
         self._batch = Batch()
         self._batch_size_bytes: int = 0
-        self.is_flushing = False
+        self._is_flushing = False
         self._batch_metadata_size: int = 0
 
         self._topic_to_msg_type: Dict[str, str] = {}
@@ -71,10 +74,6 @@ class CdrOutputWriter(OutputWriter):
 
     def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
         """Write message to batch - synchronous interface."""
-        KB_100 = 100 * 1024
-        BATCH_MAX_METADATA_SIZE = 8 * 1024
-        BATCH_MAX_RECORDS = 85
-
         try:
             serialized_data = serialize_message(message)
         except Exception as exc:
@@ -108,7 +107,7 @@ class CdrOutputWriter(OutputWriter):
         # If smaller than 100KB batch the record
         self.append_record(timestamp_us, serialized_data, labels)
 
-        if self._batch_size_bytes >= self.flush_threshold_bytes:
+        if self._batch_size_bytes >= self._flush_threshold_bytes:
             self.logger.info("Threshold triggered")
             loop.run_until_complete(self.flush_and_upload_batch())
 
@@ -132,11 +131,11 @@ class CdrOutputWriter(OutputWriter):
         """Flush the batch and upload to ReductStore."""
         if self._batch_size_bytes == 0:
             return
-        if self.is_flushing:
+        if self._is_flushing:
             self.logger.info("Already flushing. Returning ...")
             return
 
-        self.is_flushing = True
+        self._is_flushing = True
 
         try:
             batch_to_send = self._batch
@@ -152,7 +151,7 @@ class CdrOutputWriter(OutputWriter):
         except Exception as exc:
             self.logger.error(f"[{self.pipeline_name}]Failed to upload batch: {exc}")
         finally:
-            self.is_flushing = False
+            self._is_flushing = False
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register message schema."""

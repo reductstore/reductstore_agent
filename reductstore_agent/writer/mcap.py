@@ -47,17 +47,17 @@ class McapOutputWriter(OutputWriter):
         self.bucket = bucket
         self.pipeline_name = pipeline_name
         self.config = config
-        self.increment = 0
+        self._increment = 0
         self.first_timestamp: int | None = None
         self.current_size = 0
-        self.is_uploading = False
+        self._is_uploading = False
 
         # Schema tracking
         self.schema_by_type: Dict[str, Schema] = {}
         self.schemas_by_topic: Dict[str, Schema] = {}
 
-        # Initialize buffer and writer
-        self.buffer: SpooledTemporaryFile[bytes] | None = None
+        # Initialize _buffer and writer
+        self._buffer: SpooledTemporaryFile[bytes] | None = None
         self.writer: McapWriter | None = None
         self._init_writer()
 
@@ -71,16 +71,16 @@ class McapOutputWriter(OutputWriter):
     def _init_writer(self):
         """Initialize a new MCAP writer and buffer."""
         max_size = self.config.spool_max_size_bytes
-        self.buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
+        self._buffer = SpooledTemporaryFile(max_size=max_size, mode="w+b")
         self.writer = McapWriter(
-            self.buffer,
+            self._buffer,
             chunk_size=self.config.chunk_size_bytes,
             compression=self.config.compression,
             enable_crcs=self.config.enable_crcs,
         )
         self.current_size = 0
         self.first_timestamp = None
-        self.is_uploading = False
+        self._is_uploading = False
 
         # Clear schemas (they need to be re-registered for new writer)
         self.schema_by_type.clear()
@@ -136,7 +136,7 @@ class McapOutputWriter(OutputWriter):
             publish_time=publish_time,
         )
 
-        self.current_size = self.buffer.tell()
+        self.current_size = self._buffer.tell()
 
         # Check if we need to split due to size limit
         if (
@@ -149,7 +149,7 @@ class McapOutputWriter(OutputWriter):
 
     async def finish_and_upload(self):
         """Finish current MCAP, upload it, and reset the writer."""
-        if self.is_uploading:
+        if self._is_uploading:
             self.logger.warning(
                 (
                     f"[{self.pipeline_name}] Upload already in progress"
@@ -166,13 +166,13 @@ class McapOutputWriter(OutputWriter):
             return
 
         # Prevent concurrent uploads
-        self.is_uploading = True
+        self._is_uploading = True
 
         try:
             # Determine file index
             filename_mode = self.config.filename_mode
             file_index = (
-                self.increment
+                self._increment
                 if filename_mode == FilenameMode.INCREMENTAL
                 else (self.first_timestamp or 0) // 1_000  # Convert to microseconds
             )
@@ -191,17 +191,17 @@ class McapOutputWriter(OutputWriter):
             )
 
             # Increment for next segment
-            self.increment += 1
+            self._increment += 1
 
         except Exception as exc:
             self.logger.error(f"[{self.pipeline_name}] Failed to upload MCAP: {exc}")
         finally:
-            self.is_uploading = False
+            self._is_uploading = False
 
     async def _upload_to_reductstore(self, file_index: int):
         """Upload the MCAP file to ReductStore."""
-        content_length = self.buffer.tell()
-        self.buffer.seek(0)
+        content_length = self._buffer.tell()
+        self._buffer.seek(0)
 
         await self.bucket.write(
             entry_name=self.pipeline_name,
@@ -217,7 +217,7 @@ class McapOutputWriter(OutputWriter):
     ) -> AsyncGenerator[bytes, None]:
         """Yield chunks from the buffer."""
         while True:
-            chunk = self.buffer.read(chunk_size)
+            chunk = self._buffer.read(chunk_size)
             if not chunk:
                 break
             yield chunk
