@@ -62,6 +62,8 @@ def test_max_rate_downsampling(
 
     msg = generate_string(size_kb=90)
 
+    # Publishing 50 messages leads to 100Hz of the recorder,
+    # 10 Hz is default of max_stride
     publish_and_spin_messages(
         publisher_node,
         publisher,

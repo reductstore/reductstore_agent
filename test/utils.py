@@ -75,10 +75,6 @@ def publish_and_spin_messages(
         rclpy.spin_once(publisher_node, timeout_sec=0.1)
         rclpy.spin_once(recorder, timeout_sec=0.1)
         rclpy.spin_once(recorder, timeout_sec=0.1)
-        if rate:
-            rate.sleep()
-            logger.info("Maintaining Hz...")
-
     # Give recorder additional time to process and upload
     rclpy.spin_once(recorder, timeout_sec=2.0)
 
