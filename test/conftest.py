@@ -35,9 +35,9 @@ from reductstore_agent.utils import get_or_create_event_loop
 
 from .config.test_recorder_params import (
     as_overrides,
+    downsampling_params_max_rate,
     downsampling_params_none,
     downsampling_params_stride,
-    downsampling_params_max_rate,
     output_format_params_cdr,
     pipeline_params,
     storage_params,
@@ -314,12 +314,8 @@ def cdr_output_recorder() -> Generator[Recorder, None, None]:
 @pytest.fixture
 def stride_recorder() -> Generator[Recorder, None, None]:
     """Init a stride recorder node."""
-    all_overrides = (
-        as_overrides(
-            storage_params(),
-            pipeline_params(),
-            downsampling_params_stride()
-        )
+    all_overrides = as_overrides(
+        storage_params(), pipeline_params(), downsampling_params_stride()
     )
 
     rec = Recorder(parameter_overrides=all_overrides)
@@ -330,12 +326,8 @@ def stride_recorder() -> Generator[Recorder, None, None]:
 @pytest.fixture
 def max_rate_recorder() -> Generator[Recorder, None, None]:
     """Init a max_rate recorder node."""
-    all_overrides = (
-        as_overrides(
-            storage_params(),
-            pipeline_params(),
-            downsampling_params_max_rate()
-        )
+    all_overrides = as_overrides(
+        storage_params(), pipeline_params(), downsampling_params_max_rate()
     )
 
     rec = Recorder(parameter_overrides=all_overrides)

@@ -20,18 +20,17 @@
 
 """Integration test for downsampling logic."""
 
-from ..utils import fetch_and_count_records, publish_and_spin_messages, generate_string
 from reductstore_agent.utils import get_or_create_event_loop
 
+from ..utils import fetch_and_count_records, generate_string, publish_and_spin_messages
 
-def test_stride_downsampling(
-    reduct_client, publisher_node, publisher, stride_recorder
-):
+
+def test_stride_downsampling(reduct_client, publisher_node, publisher, stride_recorder):
     """Test that the downsampling method 'stride' works."""
     MESSAGE_COUNT = 50
     ENTRY_NAME = "test"
     BUCKET_NAME = "test_bucket"
-    EXPECTED_COUNT = MESSAGE_COUNT / 5  #default stride value
+    EXPECTED_COUNT = MESSAGE_COUNT / 5  # default stride value
     msg = generate_string(size_kb=90)
 
     publish_and_spin_messages(
@@ -40,7 +39,7 @@ def test_stride_downsampling(
         stride_recorder,
         msg,
         wait_for_subscription=True,
-        n_msg=MESSAGE_COUNT
+        n_msg=MESSAGE_COUNT,
     )
 
     loop = get_or_create_event_loop()
@@ -59,16 +58,8 @@ def test_max_rate_downsampling(
     MESSAGE_COUNT = 50
     ENTRY_NAME = "test"
     BUCKET_NAME = "test_bucket"
-    
-    # Expected Logic:
-    # Duration = 50 msgs / 50 Hz = 1.0 second.
-    # Recorder Limit = 10 Hz.
-    # Expected = 10-11 messages over 1 second.
-
-    # Should be 10 
-    # could be that recorder is capped at 10Hz
     EXPECTED_COUNT = 10
-    
+
     msg = generate_string(size_kb=90)
 
     publish_and_spin_messages(
@@ -85,4 +76,4 @@ def test_max_rate_downsampling(
         fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
     )
 
-    assert EXPECTED_COUNT - 1 <= len(records) <= EXPECTED_COUNT + 1
+    assert len(records) == EXPECTED_COUNT

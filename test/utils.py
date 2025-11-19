@@ -22,6 +22,7 @@
 import rclpy
 from std_msgs.msg import String
 
+
 async def fetch_and_count_records(
     client,
     bucket_name: str,
@@ -42,7 +43,7 @@ def publish_and_spin_messages(
     message: String,
     wait_for_subscription: bool = True,
     n_msg: int = 1,
-    frequency: float = None
+    frequency: float = None,
 ):
     """Publish messages and spin nodes to process it."""
     logger = publisher_node.get_logger()

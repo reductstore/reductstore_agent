@@ -20,11 +20,9 @@
 
 """Test cdr_output functionality."""
 
-import rclpy
-from std_msgs.msg import String
-
 from reductstore_agent.utils import get_or_create_event_loop
-from ..utils import fetch_and_count_records, publish_and_spin_messages, generate_string
+
+from ..utils import fetch_and_count_records, generate_string, publish_and_spin_messages
 
 
 def test_cdr_output_streams_large_record(
