@@ -18,84 +18,71 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Test cdr_output functionality."""
+"""Integration test for downsampling logic."""
 
-import rclpy
-from std_msgs.msg import String
-
-from reductstore_agent.utils import get_or_create_event_loop
 from ..utils import fetch_and_count_records, publish_and_spin_messages, generate_string
+from reductstore_agent.utils import get_or_create_event_loop
 
 
-def test_cdr_output_streams_large_record(
-    reduct_client, publisher_node, publisher, cdr_output_recorder
+def test_stride_downsampling(
+    reduct_client, publisher_node, publisher, stride_recorder
 ):
-    """Test that Recorder streams large messages immediately."""
-    large_msg = generate_string(size_kb=150)
+    """Test that the downsampling method 'stride' works."""
+    MESSAGE_COUNT = 50
+    ENTRY_NAME = "test"
+    BUCKET_NAME = "test_bucket"
+    EXPECTED_COUNT = MESSAGE_COUNT / 5  #default stride value
+    msg = generate_string(size_kb=90)
+
     publish_and_spin_messages(
         publisher_node,
         publisher,
-        cdr_output_recorder,
-        large_msg,
+        stride_recorder,
+        msg,
         wait_for_subscription=True,
+        n_msg=MESSAGE_COUNT
     )
-    ENTRY_NAME = "test"
-    BUCKET_NAME = "test_bucket"
 
     loop = get_or_create_event_loop()
     count = loop.run_until_complete(
         fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
     )
 
-    assert len(count) == 1
+    assert len(count) == EXPECTED_COUNT
 
 
-def test_cdr_output_batch_flushes(
-    reduct_client, publisher_node, publisher, cdr_output_recorder
+def test_max_rate_downsampling(
+    reduct_client, publisher_node, publisher, max_rate_recorder
 ):
-    """Test that the Recorder flushes batch."""
+    """Test that 'max_rate' downsampling mode works."""
+    """Test that the downsampling method 'max_rate' works."""
+    MESSAGE_COUNT = 50
     ENTRY_NAME = "test"
     BUCKET_NAME = "test_bucket"
+    
+    # Expected Logic:
+    # Duration = 50 msgs / 50 Hz = 1.0 second.
+    # Recorder Limit = 10 Hz.
+    # Expected = 10-11 messages over 1 second.
 
+    # Should be 10 
+    # could be that recorder is capped at 10Hz
+    EXPECTED_COUNT = 10
+    
     msg = generate_string(size_kb=90)
-    MESSAGE_COUNT = 57
+
     publish_and_spin_messages(
         publisher_node,
         publisher,
-        cdr_output_recorder,
+        max_rate_recorder,
         msg,
         wait_for_subscription=True,
         n_msg=MESSAGE_COUNT,
     )
 
     loop = get_or_create_event_loop()
-    count = loop.run_until_complete(
+    records = loop.run_until_complete(
         fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
     )
-    assert len(count) == MESSAGE_COUNT
 
-
-def test_cdr_output_batch_flushed_on_shutdown(
-    reduct_client, publisher_node, publisher, cdr_output_recorder
-):
-    """Test that the Recorder streams and flushes batch on shutdown."""
-    ENTRY_NAME = "test"
-    BUCKET_NAME = "test_bucket"
-
-    msg = generate_string(size_kb=90)
-    publish_and_spin_messages(
-        publisher_node,
-        publisher,
-        cdr_output_recorder,
-        msg,
-        wait_for_subscription=True,
-        n_msg=1,
-    )
-    # Simulate shutdown
-    for state in cdr_output_recorder.pipeline_states.values():
-        state.writer.flush_on_shutdown()
-    loop = get_or_create_event_loop()
-    count = loop.run_until_complete(
-        fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
-    )
-    assert len(count) == 1
+    assert EXPECTED_COUNT - 1 <= len(records) <= EXPECTED_COUNT + 1

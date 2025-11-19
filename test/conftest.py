@@ -36,6 +36,8 @@ from reductstore_agent.utils import get_or_create_event_loop
 from .config.test_recorder_params import (
     as_overrides,
     downsampling_params_none,
+    downsampling_params_stride,
+    downsampling_params_max_rate,
     output_format_params_cdr,
     pipeline_params,
     storage_params,
@@ -78,7 +80,7 @@ def publisher_node() -> Generator[Node, None, None]:
 @pytest.fixture
 def publisher(publisher_node: Node) -> Publisher:
     """Create a publisher for the test topic."""
-    pub = publisher_node.create_publisher(String, "/test/topic", 10)
+    pub = publisher_node.create_publisher(String, "/test/topic", 50)
     return pub
 
 
@@ -307,3 +309,35 @@ def cdr_output_recorder() -> Generator[Recorder, None, None]:
         # Only clean up if shutdown hasn't already been called in the test
         if rclpy.ok():
             rec.destroy_node()
+
+
+@pytest.fixture
+def stride_recorder() -> Generator[Recorder, None, None]:
+    """Init a stride recorder node."""
+    all_overrides = (
+        as_overrides(
+            storage_params(),
+            pipeline_params(),
+            downsampling_params_stride()
+        )
+    )
+
+    rec = Recorder(parameter_overrides=all_overrides)
+    yield rec
+    rec.destroy_node()
+
+
+@pytest.fixture
+def max_rate_recorder() -> Generator[Recorder, None, None]:
+    """Init a max_rate recorder node."""
+    all_overrides = (
+        as_overrides(
+            storage_params(),
+            pipeline_params(),
+            downsampling_params_max_rate()
+        )
+    )
+
+    rec = Recorder(parameter_overrides=all_overrides)
+    yield rec
+    rec.destroy_node()

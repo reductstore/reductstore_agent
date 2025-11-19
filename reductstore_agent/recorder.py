@@ -415,7 +415,6 @@ class Recorder(Node):
         """Return a callback that uploads the current pipeline state."""
 
         def _timer_callback():
-            print("Hello")
             self.upload_pipeline(pipeline_name, state)
 
         return _timer_callback
