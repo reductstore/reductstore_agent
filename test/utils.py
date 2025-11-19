@@ -62,11 +62,6 @@ def publish_and_spin_messages(
         else:
             logger.warning("Recorder subscription not detected, proceeding anyway...")
 
-    rate = None
-    if frequency:
-        rate = publisher_node.create_rate(frequency)
-        logger.info(f"Publishing {n_msg} messages at {frequency} Hz ...")
-
     # Publish the messages
     for i in range(n_msg):
         logger.info(f"Publishing message (size: {len(message.data)} bytes)")
