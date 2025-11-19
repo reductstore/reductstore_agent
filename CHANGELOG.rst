@@ -23,3 +23,5 @@ Changelog for package reductstore_agent
   Implement downsampling option per pipeline
 * Merge pull request `#11 <https://github.com/reductstore/reductstore_agent/issues/11>`_ from reductstore/11-support-raw-output
   Implement raw output format per pipeline
+* Merge pull request `#38 <https://github.com/reductstore/reductstore_agent/issues/38>`_ from reductstore/38-add-downsampling-integration-test
+  Add integration test for downsampling
