@@ -25,6 +25,7 @@ from mcap.records import Schema
 from rclpy.timer import Timer
 
 from .downsampler import Downsampler
+from .dynamic_labels import LabelStateTracker
 from .writer.base import OutputWriter
 
 
@@ -43,6 +44,7 @@ class PipelineState:
         current_size: int = 0,
         is_uploading: bool = False,
         downsampler: Downsampler | None = None,
+        label_mode: LabelStateTracker | None = None,
     ):
         """Initialize pipeline state."""
         self.topics = topics if topics is not None else []
@@ -55,3 +57,4 @@ class PipelineState:
         self.current_size = current_size
         self.is_uploading = is_uploading
         self.downsampler = downsampler
+        self.label_mode = label_mode

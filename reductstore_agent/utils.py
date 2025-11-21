@@ -88,3 +88,8 @@ def ns_to_us(ns: int) -> int:
 def metadata_size(labels: dict) -> int:
     """Return byte size of metadata."""
     return len(json.dumps(labels, separators=(",", ":")).encode("utf-8"))
+
+
+def extract_field(msg, field_path):
+    """Return the value of a specific msg_field."""
+    return getattr(msg, field_path)
