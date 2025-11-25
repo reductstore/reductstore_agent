@@ -28,6 +28,7 @@ from reduct import Batch, Bucket
 
 from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
+from ..dynamic_labels import LabelStateTracker
 
 KB_100 = 100 * 1024
 BATCH_MAX_METADATA_SIZE = 8 * 1024
@@ -43,6 +44,7 @@ class CdrOutputWriter(OutputWriter):
         pipeline_name: str,
         flush_threshold_bytes: int = 5 * 1024 * 1024,  # i.e. 2MB
         logger=None,
+        label_tracker: LabelStateTracker | None = None
     ):
         """Initialize CDROutput writer."""
         self.bucket = bucket
@@ -52,6 +54,7 @@ class CdrOutputWriter(OutputWriter):
         self._batch_size_bytes: int = 0
         self._is_flushing = False
         self._batch_metadata_size: int = 0
+        self.label_tracker = label_tracker
 
         self._topic_to_msg_type: Dict[str, str] = {}
         if logger is None:
@@ -74,6 +77,9 @@ class CdrOutputWriter(OutputWriter):
 
     def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
         """Write message to batch - synchronous interface."""
+        if self.label_tracker is not None:
+            self.label_tracker.update(topic, message)
+
         try:
             serialized_data = serialize_message(message)
         except Exception as exc:

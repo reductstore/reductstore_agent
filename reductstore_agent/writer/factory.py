@@ -26,7 +26,7 @@ from ..models import OutputFormat, PipelineConfig
 from .base import OutputWriter
 from .cdr import CdrOutputWriter
 from .mcap import McapOutputWriter
-
+from ..dynamic_labels import LabelStateTracker
 
 def create_writer(
     config: PipelineConfig, bucket: Bucket, pipeline_name: str = None, logger=None
@@ -57,12 +57,14 @@ def create_writer(
             pipeline_name=pipeline_name or "default",
             config=config,
             logger=logger,
+            label_tracker=LabelStateTracker(config) if config.labels else None
         )
     elif config.output_format == OutputFormat.CDR:
         return CdrOutputWriter(
             bucket=bucket,
             pipeline_name=pipeline_name or "default",
             logger=logger,
+            labels_tracker=LabelStateTracker(config) if config.labels else None
         )
     else:
         raise ValueError(f"Unsupported output format: {config.output_format}")

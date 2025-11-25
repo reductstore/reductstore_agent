@@ -28,6 +28,7 @@ from mcap_ros2.writer import Writer as McapWriter
 from reduct import Bucket
 from rosbag2_py import LocalMessageDefinitionSource
 
+from ..dynamic_labels import LabelStateTracker
 from ..models import FilenameMode, PipelineConfig
 from ..utils import get_or_create_event_loop
 from .base import OutputWriter
@@ -42,6 +43,7 @@ class McapOutputWriter(OutputWriter):
         pipeline_name: str,
         config: PipelineConfig,
         logger=None,
+        label_tracker: LabelStateTracker | None = None
     ):
         """Initialize MCAP writer."""
         self.bucket = bucket
@@ -51,6 +53,7 @@ class McapOutputWriter(OutputWriter):
         self.first_timestamp: int | None = None
         self.current_size = 0
         self._is_uploading = False
+        self.label_tracker = label_tracker
 
         # Schema tracking
         self.schema_by_type: Dict[str, Schema] = {}
@@ -117,6 +120,9 @@ class McapOutputWriter(OutputWriter):
         """Write message to MCAP file synchronously."""
         if self.first_timestamp is None:
             self.first_timestamp = publish_time
+
+        if self.label_tracker is not None:
+            self.label_tracker.update(topic, message)
 
         # Get the actual schema from our registry
         actual_schema = self.schemas_by_topic.get(topic)
@@ -202,6 +208,10 @@ class McapOutputWriter(OutputWriter):
         """Upload the MCAP file to ReductStore."""
         content_length = self._buffer.tell()
         self._buffer.seek(0)
+        labels: dict[str, str] = dict(self.config.static_labels)
+
+        if self.label_tracker is not None:
+            labels.update(self.label_tracker.get_labels())
 
         await self.bucket.write(
             entry_name=self.pipeline_name,
