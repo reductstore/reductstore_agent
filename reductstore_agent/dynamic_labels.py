@@ -43,7 +43,6 @@ class LabelStateTracker:
         if cfg is None:
             self.logger.info("Can not read from config. Returning ...")
             return
-
         if cfg.mode is LabelMode.LAST:
             updater = self._update_last
         elif cfg.mode is LabelMode.FIRST:
@@ -73,8 +72,8 @@ class LabelStateTracker:
         try:
             if value > self._values[label_key]:
                 self._values[label_key] = value
-        except Exception:
-            print(Exception)
+        except Exception as exc:
+            self.logger.error(f"Could not update label value: {exc}")
 
     def get_labels(self) -> dict[str, str]:
         """Return current labels for writing."""

@@ -68,6 +68,10 @@ class CdrOutputWriter(OutputWriter):
         self, serialized_data: bytes, timestamp_us: int, labels: Dict
     ):
         """Upload raw data to ReductStore with labels and timestamp."""
+        # Update dynamic labels
+        if self.label_tracker is not None:
+            labels.update(self.label_tracker.get_labels())
+
         await self.bucket.write(
             entry_name=self.pipeline_name,
             timestamp=timestamp_us,
@@ -130,6 +134,10 @@ class CdrOutputWriter(OutputWriter):
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
     ) -> None:
         """Append raw data to batch."""
+        # Add dynamic labels
+        if self.label_tracker is not None:
+            labels.update(self.label_tracker.get_labels())
+            
         self._batch_size_bytes += len(serialized_data)
         self._batch_metadata_size += metadata_size(labels)
         self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)
