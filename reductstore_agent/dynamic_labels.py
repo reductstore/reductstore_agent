@@ -72,12 +72,8 @@ class LabelStateTracker:
             self._values[label_key] = value
             return
 
-        try:
-            if value > self._values[label_key]:
-                self._values[label_key] = value
-        except Exception as exc:
-            if self.logger:
-                self.logger.error(f"Could not update label value: {exc}")
+        if value > self._values[label_key]:
+            self._values[label_key] = value
 
     def get_labels(self) -> dict[str, str]:
         """Return current labels for writing."""
