@@ -121,6 +121,7 @@ class McapOutputWriter(OutputWriter):
         if self.first_timestamp is None:
             self.first_timestamp = publish_time
 
+        # Process each message and update labels
         if self.label_tracker is not None:
             self.label_tracker.update(topic, message)
 
@@ -219,7 +220,7 @@ class McapOutputWriter(OutputWriter):
             timestamp=file_index,
             content_length=content_length,
             content_type="application/mcap",
-            labels=self.config.static_labels,
+            labels=labels,
         )
 
     async def _read_in_chunks(

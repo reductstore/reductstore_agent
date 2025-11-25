@@ -77,6 +77,7 @@ class CdrOutputWriter(OutputWriter):
 
     def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
         """Write message to batch - synchronous interface."""
+        # Process each message and update labels
         if self.label_tracker is not None:
             self.label_tracker.update(topic, message)
 
