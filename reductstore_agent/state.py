@@ -25,7 +25,6 @@ from mcap.records import Schema
 from rclpy.timer import Timer
 
 from .downsampler import Downsampler
-from .dynamic_labels import LabelStateTracker
 from .writer.base import OutputWriter
 
 

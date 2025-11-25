@@ -29,17 +29,19 @@ from .utils import extract_field
 class LabelStateTracker:
     """LabelStateTracker class tracking for dynamic labels."""
 
-    def __init__(self, cfg: PipelineConfig):
+    def __init__(self, cfg: PipelineConfig, logger=None):
         """Initialize a LabelStateTracker instance."""
         self._configs: dict[str, LabelTopicConfig] = {
             label_cfg.topic: label_cfg for label_cfg in cfg.labels
         }
         self._values: dict[str, Any] = {}
+        self.logger = logger
 
     def update(self, topic_name, msg):
         """Update label state from a single message incoming message."""
         cfg = self._configs.get(topic_name)
         if cfg is None:
+            self.logger.info("Can not read from config. Returning ...")
             return
 
         if cfg.mode is LabelMode.LAST:

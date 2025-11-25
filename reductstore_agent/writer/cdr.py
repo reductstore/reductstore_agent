@@ -26,9 +26,9 @@ from typing import Any, Dict
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
 
+from ..dynamic_labels import LabelStateTracker
 from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
-from ..dynamic_labels import LabelStateTracker
 
 KB_100 = 100 * 1024
 BATCH_MAX_METADATA_SIZE = 8 * 1024
@@ -44,7 +44,7 @@ class CdrOutputWriter(OutputWriter):
         pipeline_name: str,
         flush_threshold_bytes: int = 5 * 1024 * 1024,  # i.e. 2MB
         logger=None,
-        label_tracker: LabelStateTracker | None = None
+        label_tracker: LabelStateTracker | None = None,
     ):
         """Initialize CDROutput writer."""
         self.bucket = bucket
