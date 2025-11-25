@@ -137,7 +137,7 @@ class CdrOutputWriter(OutputWriter):
         # Add dynamic labels
         if self.label_tracker is not None:
             labels.update(self.label_tracker.get_labels())
-            
+
         self._batch_size_bytes += len(serialized_data)
         self._batch_metadata_size += metadata_size(labels)
         self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)
