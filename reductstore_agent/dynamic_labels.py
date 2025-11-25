@@ -27,7 +27,7 @@ from .utils import extract_field
 
 
 class LabelStateTracker:
-    """LabelStateTracker class tracking for dynamic labels."""
+    """Class for tracking dynamic label state."""
 
     def __init__(self, cfg: PipelineConfig, logger=None):
         """Initialize a LabelStateTracker instance."""
@@ -38,10 +38,13 @@ class LabelStateTracker:
         self.logger = logger
 
     def update(self, topic_name, msg):
-        """Update label state from a single message incoming message."""
+        """Update label state from a single incoming message."""
         cfg = self._configs.get(topic_name)
         if cfg is None:
-            self.logger.info("Can not read from config. Returning ...")
+            if self.logger:
+                self.logger.info(
+                    "Cannot read config for topic " f"'{topic_name}'. Returning ..."
+                )
             return
         if cfg.mode is LabelMode.LAST:
             updater = self._update_last
@@ -73,8 +76,9 @@ class LabelStateTracker:
             if value > self._values[label_key]:
                 self._values[label_key] = value
         except Exception as exc:
-            self.logger.error(f"Could not update label value: {exc}")
+            if self.logger:
+                self.logger.error(f"Could not update label value: {exc}")
 
     def get_labels(self) -> dict[str, str]:
         """Return current labels for writing."""
-        return {k: str(v) for k, v in self._value.items()}
+        return {k: str(v) for k, v in self._values.items()}

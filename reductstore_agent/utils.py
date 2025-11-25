@@ -92,4 +92,8 @@ def metadata_size(labels: dict) -> int:
 
 def extract_field(msg, field_path):
     """Return the value of a specific msg_field."""
-    return getattr(msg, field_path)
+    attrs = field_path.split(".")
+    value = msg
+    for attr in attrs:
+        value = getattr(value, attr)
+    return value
