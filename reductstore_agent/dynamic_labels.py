@@ -82,3 +82,37 @@ class LabelStateTracker:
     def get_labels(self) -> dict[str, str]:
         """Return current labels for writing."""
         return {k: str(v) for k, v in self._values.items()}
+
+    def is_null(self):
+        """Return False for the real object."""
+        return False
+
+
+class NullLabelStateTracker(LabelStateTracker):
+    """Null object for LabelStateTracker."""
+
+    def __init__(self):
+        """Initialize the null object without configuration."""
+        self._values: dict[str, Any] = {}
+        self.logger = None
+
+    def update(self, topic_name, msg):
+        """Do nothing on update, as there is no state to track."""
+        pass
+
+    def _update_last(self, label_key: str, value: Any):
+        pass
+
+    def _update_first(self, label_key: str, value: Any):
+        pass
+
+    def _update_max(self, label_key: str, value: Any):
+        pass
+
+    def get_labels(self) -> dict[str, str]:
+        """Return the default/empty state."""
+        return {}
+
+    def is_null(self) -> bool:
+        """Return True for the null object."""
+        return True

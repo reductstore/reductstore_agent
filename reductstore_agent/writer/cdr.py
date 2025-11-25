@@ -69,8 +69,7 @@ class CdrOutputWriter(OutputWriter):
     ):
         """Upload raw data to ReductStore with labels and timestamp."""
         # Update dynamic labels
-        if self.label_tracker is not None:
-            labels.update(self.label_tracker.get_labels())
+        labels.update(self.label_tracker.get_labels())
 
         await self.bucket.write(
             entry_name=self.pipeline_name,
@@ -82,8 +81,7 @@ class CdrOutputWriter(OutputWriter):
     def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
         """Write message to batch - synchronous interface."""
         # Process each message and update labels
-        if self.label_tracker is not None:
-            self.label_tracker.update(topic, message)
+        self.label_tracker.update(topic, message)
 
         try:
             serialized_data = serialize_message(message)
@@ -135,8 +133,7 @@ class CdrOutputWriter(OutputWriter):
     ) -> None:
         """Append raw data to batch."""
         # Add dynamic labels
-        if self.label_tracker is not None:
-            labels.update(self.label_tracker.get_labels())
+        labels.update(self.label_tracker.get_labels())
 
         self._batch_size_bytes += len(serialized_data)
         self._batch_metadata_size += metadata_size(labels)

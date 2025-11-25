@@ -122,8 +122,7 @@ class McapOutputWriter(OutputWriter):
             self.first_timestamp = publish_time
 
         # Process each message and update labels
-        if self.label_tracker is not None:
-            self.label_tracker.update(topic, message)
+        self.label_tracker.update(topic, message)
 
         # Get the actual schema from our registry
         actual_schema = self.schemas_by_topic.get(topic)
@@ -211,8 +210,8 @@ class McapOutputWriter(OutputWriter):
         self._buffer.seek(0)
         labels: dict[str, str] = dict(self.config.static_labels)
 
-        if self.label_tracker is not None:
-            labels.update(self.label_tracker.get_labels())
+        # Attach dynamic labels
+        labels.update(self.label_tracker.get_labels())
 
         await self.bucket.write(
             entry_name=self.pipeline_name,
