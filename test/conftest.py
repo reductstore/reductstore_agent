@@ -30,6 +30,7 @@ from rclpy.publisher import Publisher
 from reduct import Client
 from std_msgs.msg import String
 
+from reductstore_agent.models import LabelMode, LabelTopicConfig, PipelineConfig
 from reductstore_agent.recorder import Recorder
 from reductstore_agent.utils import get_or_create_event_loop
 
@@ -333,3 +334,32 @@ def max_rate_recorder() -> Generator[Recorder, None, None]:
     rec = Recorder(parameter_overrides=all_overrides)
     yield rec
     rec.destroy_node()
+
+
+@pytest.fixture
+def mock_label_config():
+    """Return a mock_label PipelineConfig."""
+    required_split_params = {
+        "split.max_duration_s": 1,
+    }
+
+    return PipelineConfig(
+        labels=[
+            LabelTopicConfig(
+                topic="/mission_info",
+                mode=LabelMode.LAST,
+                fields={"mission_id": "mid"},
+            ),
+            LabelTopicConfig(
+                topic="/telemetry",
+                mode=LabelMode.MAX,
+                fields={"max_speed": "speed"},
+            ),
+            LabelTopicConfig(
+                topic="/startup_data",
+                mode=LabelMode.FIRST,
+                fields={"initial_voltage": "volt"},
+            ),
+        ],
+        **required_split_params,
+    )

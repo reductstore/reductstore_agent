@@ -95,5 +95,14 @@ def extract_field(msg, field_path):
     attrs = field_path.split(".")
     value = msg
     for attr in attrs:
-        value = getattr(value, attr)
+        try:
+            value = getattr(value, attr)
+        except AttributeError:
+            try:
+                value = value[attr]
+            except (KeyError, TypeError):
+                raise ValueError(
+                    f"Field path '{field_path}' failed at attribute/key '{attr}'. "
+                    "Key not found or object is incompatible."
+                )
     return value

@@ -25,6 +25,7 @@ import re
 import pytest
 from rclpy.parameter import Parameter
 
+from reductstore_agent.models import LabelTopicConfig
 from reductstore_agent.recorder import Recorder
 
 
@@ -116,11 +117,71 @@ def output_format_params_mcap():
     return [Parameter("pipelines.test.output_format", Parameter.Type.STRING, "mcap")]
 
 
+def dynamic_label_params():
+    """Return a list of valid parameters for LabelStateTracker."""
+    return [
+        # --- Label 0: LAST Mode ---
+        Parameter(
+            "pipelines.test.labels.0.topic",
+            Parameter.Type.STRING,
+            "/mission_info",
+        ),
+        Parameter(
+            "pipelines.test.labels.0.mode",
+            Parameter.Type.STRING,
+            "last",
+        ),
+        Parameter(
+            "pipelines.test.labels.0.fields.mission_id",
+            Parameter.Type.STRING,
+            "mission_id",
+        ),
+        Parameter(
+            "pipelines.test.labels.0.fields.operator",
+            Parameter.Type.STRING,
+            "operator",
+        ),
+        # --- Label 1: MAX Mode ---
+        Parameter(
+            "pipelines.test.labels.1.topic",
+            Parameter.Type.STRING,
+            "/telemetry",
+        ),
+        Parameter(
+            "pipelines.test.labels.1.mode",
+            Parameter.Type.STRING,
+            "max",
+        ),
+        Parameter(
+            "pipelines.test.labels.1.fields.max_speed",
+            Parameter.Type.STRING,
+            "speed",
+        ),
+        # --- Label 2: FIRST Mode ---
+        Parameter(
+            "pipelines.test.labels.2.topic",
+            Parameter.Type.STRING,
+            "/startup_config",
+        ),
+        Parameter(
+            "pipelines.test.labels.2.mode",
+            Parameter.Type.STRING,
+            "first",
+        ),
+        Parameter(
+            "pipelines.test.labels.2.fields.start_volt",
+            Parameter.Type.STRING,
+            "voltage",
+        ),
+    ]
+
+
 def as_overrides(
     storage_dict,
     pipeline_params=None,
     downsampling_params=None,
     output_format_params=None,
+    label_params=None,
 ):
     """Convert storage parameters and combine with pipeline parameters."""
     overrides = []
@@ -140,6 +201,9 @@ def as_overrides(
             overrides.append(param)
     if output_format_params:
         for param in output_format_params:
+            overrides.append(param)
+    if label_params:
+        for param in label_params:
             overrides.append(param)
 
     return overrides
@@ -199,9 +263,14 @@ def test_recorder_valid_all_configuration(
     """Test that Recoder node can be created with all valid configurations."""
     downsampling_params = downsampling_func()
     output_params = output_format_func()
+    labels = dynamic_label_params()
     node = Recorder(
         parameter_overrides=as_overrides(
-            storage_params(), pipeline_params(), downsampling_params, output_params
+            storage_params(),
+            pipeline_params(),
+            downsampling_params,
+            output_params,
+            labels,
         )
     )
     assert node.get_name() == "recorder"
@@ -377,6 +446,17 @@ def test_recorder_valid_mcap_pipeline_params():
     node.destroy_node()
 
 
+def test_recorder_valid_label_params():
+    """Test that the Recorder node can be created with valid label parameters."""
+    node = Recorder(
+        parameter_overrides=as_overrides(
+            storage_params(), pipeline_params(), label_params=dynamic_label_params()
+        )
+    )
+    assert node.get_name() == "recorder"
+    node.destroy_node()
+
+
 def test_recorder_invalid_chunk_size():
     """Test that an invalid chunk size raises an error."""
     storage_dict = storage_params()
@@ -500,3 +580,26 @@ def test_recorder_invalid_downsampling_params(
         Recorder(
             parameter_overrides=as_overrides(storage_params(), all_pipeline_params)
         )
+
+
+LABEL_INVALID_CASES = [
+    (
+        {"topic": "foo", "mode": "invalid_mode", "fields": {"k": "v"}},
+        r"Input should be 'last', 'first' or 'max'",
+    ),
+    (
+        {"topic": 123, "mode": "last", "fields": {"k": "v"}},
+        r"topic\n  Input should be a valid string",
+    ),
+    (
+        {"topic": "foo", "mode": "last", "fields": "not_a_map"},
+        r"fields\n  Input should be a valid dictionary",
+    ),
+]
+
+
+@pytest.mark.parametrize("payload, err_msg", LABEL_INVALID_CASES)
+def test_label_topic_config_invalid_cases(payload, err_msg):
+    """Test if invalid LabelTopicConfig file raises an error."""
+    with pytest.raises(ValueError, match=rf"{err_msg}"):
+        LabelTopicConfig(**payload)
