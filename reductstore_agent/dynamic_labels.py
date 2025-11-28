@@ -79,10 +79,6 @@ class LabelStateTracker:
         """Return current labels for writing."""
         return {k: str(v) for k, v in self._values.items()}
 
-    def is_null(self):
-        """Return False for the real object."""
-        return False
-
 
 class NullLabelStateTracker(LabelStateTracker):
     """Null object for LabelStateTracker."""
@@ -108,7 +104,3 @@ class NullLabelStateTracker(LabelStateTracker):
     def get_labels(self) -> dict[str, str]:
         """Return the default/empty state."""
         return {}
-
-    def is_null(self) -> bool:
-        """Return True for the null object."""
-        return True

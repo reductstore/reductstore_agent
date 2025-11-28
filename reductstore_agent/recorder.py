@@ -146,11 +146,45 @@ class Recorder(Node):
                 pipelines_raw[pipeline_name].setdefault("static_labels", {})[
                     label_key
                 ] = value
+            elif subkey.startswith("labels."):
+                parts = subkey.split(".")
+                if len(parts) < 3:
+                    raise ValueError(
+                        (
+                            f"Invalid label key '{parts} "
+                            "Expected 'pipelines.<pipeline_name>.<labels>."
+                        )
+                    )
+                idx_str = parts[1]
+                rest_parts = parts[2:]
+                try:
+                    idx = int(idx_str)
+                except ValueError:
+                    continue
+                labels_dict = pipelines_raw[pipeline_name].setdefault("labels", {})
+                entry = labels_dict.setdefault(idx, {"fields": {}})
+
+                head = rest_parts[0]
+
+                # labels.<idx>.topic
+                if head == "topic" and len(rest_parts) == 1:
+                    entry["topic"] = value
+                # labels.<idx>.mode
+                elif head == "mode" and len(rest_parts) == 1:
+                    entry["mode"] = value
+                # labels.<idx>.fields.<field_name>
+                elif head == "fields" and len(rest_parts) == 2:
+                    field_name = rest_parts[1]
+                    entry["fields"][field_name] = value
+
             else:
                 pipelines_raw[pipeline_name][subkey] = value
 
         pipelines: dict[str, PipelineConfig] = {}
         for name, cfg in pipelines_raw.items():
+            if "labels" in cfg and isinstance(cfg["labels"], dict):
+                label_dict: dict[int, dict[str, Any]] = cfg["labels"]
+                cfg["labels"] = [label_dict[i] for i in sorted(label_dict)]
             pipelines[name] = PipelineConfig(**cfg)
         return pipelines
 
@@ -188,6 +222,8 @@ class Recorder(Node):
         for pipeline_name, cfg in self.pipeline_configs.items():
             duration = cfg.split_max_duration_s
             topics = self.resolve_topics(cfg, all_topics)
+            if not topics and cfg.include_topics:
+                topics = set(cfg.include_topics)
 
             writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
             state = PipelineState(

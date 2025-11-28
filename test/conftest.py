@@ -28,7 +28,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.publisher import Publisher
 from reduct import Client
-from std_msgs.msg import String
+from std_msgs.msg import Float32, Int32, String
 
 from reductstore_agent.models import LabelMode, LabelTopicConfig, PipelineConfig
 from reductstore_agent.recorder import Recorder
@@ -39,7 +39,9 @@ from .config.test_recorder_params import (
     downsampling_params_max_rate,
     downsampling_params_none,
     downsampling_params_stride,
+    dynamic_label_params,
     output_format_params_cdr,
+    pipeline_dynamic_params,
     pipeline_params,
     storage_params,
 )
@@ -362,4 +364,71 @@ def mock_label_config():
             ),
         ],
         **required_split_params,
+    )
+
+
+@pytest.fixture
+def dynamic_label_recorder():
+    """Init a dynamic label recorder node with MCAP."""
+    all_overrides = as_overrides(
+        storage_params(), pipeline_dynamic_params(), dynamic_label_params()
+    )
+
+    rec = Recorder(parameter_overrides=all_overrides)
+    yield rec
+    rec.destroy_node()
+
+
+@pytest.fixture
+def label_publishers(publisher_node, dynamic_label_recorder):
+    """Create publishers for labels."""
+    pipeline_cfg = dynamic_label_recorder.pipeline_configs["test"]
+
+    publishers = {}
+
+    for label_cfg in pipeline_cfg.labels:
+        topic = label_cfg.topic
+
+        # Pick the correct ROS message type based on the topic
+        if topic == "/telemetry":  # numeric speed
+            msg_type = Int32
+        elif topic == "/startup_config":  # numeric voltage
+            msg_type = Float32
+        elif topic == "/mission_info":  # string mission_id
+            msg_type = String
+        else:
+            msg_type = String  # fallback
+
+        publishers[topic] = publisher_node.create_publisher(
+            msg_type,
+            topic=topic,
+            qos_profile=10,
+        )
+
+    return publishers
+
+
+@pytest.fixture
+def dynamic_pipeline_config() -> PipelineConfig:
+    """Return a pipeline config object for unit test."""
+    return PipelineConfig(
+        split_max_duration_s=1,
+        include_topics=["/telemetry", "/startup_config", "/mission_info"],
+        labels=[
+            LabelTopicConfig(
+                topic="/mission_info",
+                mode=LabelMode.LAST,
+                fields={"mission_id": "data"},
+            ),
+            LabelTopicConfig(
+                topic="/telemetry",
+                mode=LabelMode.MAX,
+                fields={"max_speed": "data"},
+            ),
+            LabelTopicConfig(
+                topic="/startup_config",
+                mode=LabelMode.FIRST,
+                fields={"initial_voltage": "data"},
+            ),
+        ],
     )

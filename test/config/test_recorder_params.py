@@ -118,9 +118,9 @@ def output_format_params_mcap():
 
 
 def dynamic_label_params():
-    """Return a list of valid parameters for LabelStateTracker."""
+    """Return valid dynamic label params for recorder."""
     return [
-        # --- Label 0: LAST Mode ---
+        # Label 0: LAST
         Parameter(
             "pipelines.test.labels.0.topic",
             Parameter.Type.STRING,
@@ -134,14 +134,14 @@ def dynamic_label_params():
         Parameter(
             "pipelines.test.labels.0.fields.mission_id",
             Parameter.Type.STRING,
-            "mission_id",
+            "data",
         ),
         Parameter(
             "pipelines.test.labels.0.fields.operator",
             Parameter.Type.STRING,
-            "operator",
+            "data",
         ),
-        # --- Label 1: MAX Mode ---
+        # Label 1: MAX
         Parameter(
             "pipelines.test.labels.1.topic",
             Parameter.Type.STRING,
@@ -155,9 +155,9 @@ def dynamic_label_params():
         Parameter(
             "pipelines.test.labels.1.fields.max_speed",
             Parameter.Type.STRING,
-            "speed",
+            "data",
         ),
-        # --- Label 2: FIRST Mode ---
+        # Label 2: FIRST
         Parameter(
             "pipelines.test.labels.2.topic",
             Parameter.Type.STRING,
@@ -169,9 +169,40 @@ def dynamic_label_params():
             "first",
         ),
         Parameter(
-            "pipelines.test.labels.2.fields.start_volt",
+            "pipelines.test.labels.2.fields.initial_voltage",
             Parameter.Type.STRING,
-            "voltage",
+            "data",
+        ),
+    ]
+
+
+def pipeline_dynamic_params():
+    """Return a list of valid pipeline parameters."""
+    return [
+        Parameter(
+            "pipelines.test.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            [
+                "/test/topic",
+                "/telemetry",
+                "/startup_config",
+                "/mission_info",
+            ],
+        ),
+        Parameter(
+            "pipelines.test.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+        Parameter(
+            "pipelines.test.split.max_size_bytes",
+            Parameter.Type.INTEGER,
+            1_000_000,
+        ),
+        Parameter(
+            "pipelines.test.filename_mode",
+            Parameter.Type.STRING,
+            "incremental",
         ),
     ]
 
