@@ -160,6 +160,12 @@ Each pipeline supports the following parameters:
   * `"mcap"` *(default)* — Send mcap files to ReductStore
   * `"cdr"` — Send binary CDR to ReductStore
 
+* **`mode`**: Choose one of dynamic labels mode:
+
+  * `"last"` *(default)* - use the most recent message 
+  * `"first"` - use the first message in the current file
+  * `"max"` - use the maximum value across all messages in the file
+
 ## Snap Package
 
 This snap provides the **ReductStore Agent ROS 2 node**, which records ROS 2 topics and streams them into ReductStore.

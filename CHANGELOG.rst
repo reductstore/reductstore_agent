@@ -25,3 +25,5 @@ Changelog for package reductstore_agent
   Implement raw output format per pipeline
 * Merge pull request `#38 <https://github.com/reductstore/reductstore_agent/issues/38>`_ from reductstore/38-add-downsampling-integration-test
   Add integration test for downsampling
+* Merge pull request `#14 <https://github.com/reductstore/reductstore_agent/issues/14>`_ from reductstore/14-support-dynamic-labels
+  Add dynamic labels feature

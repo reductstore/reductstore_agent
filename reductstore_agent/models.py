@@ -90,6 +90,22 @@ class OutputFormat(str, Enum):
     CDR = "cdr"
 
 
+class LabelMode(str, Enum):
+    """Dynamic Label mode per pipeline."""
+
+    LAST = "last"
+    FIRST = "first"
+    MAX = "max"
+
+
+class LabelTopicConfig(BaseModel):
+    """Config for dynamic labels."""
+
+    topic: str
+    mode: LabelMode = Field(default=LabelMode.LAST)
+    fields: dict[str, str]
+
+
 class PipelineConfig(BaseModel):
     """Configuration for a recording pipeline."""
 
@@ -116,6 +132,7 @@ class PipelineConfig(BaseModel):
     include_topics: list[str] = Field(default_factory=list)
     exclude_topics: list[str] = Field(default_factory=list)
     static_labels: dict[str, str] = Field(default_factory=dict)
+    labels: list[LabelTopicConfig] = Field(default_factory=list)
     filename_mode: FilenameMode = FilenameMode.TIMESTAMP
 
     downsampling_mode: DownsamplingMode = Field(default=DownsamplingMode.NONE)
