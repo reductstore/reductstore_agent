@@ -43,7 +43,7 @@ class McapOutputWriter(OutputWriter):
         pipeline_name: str,
         config: PipelineConfig,
         logger=None,
-        label_tracker: LabelStateTracker | None = None,
+        label_tracker=LabelStateTracker
     ):
         """Initialize MCAP writer."""
         self.bucket = bucket

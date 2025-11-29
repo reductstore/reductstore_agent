@@ -44,7 +44,7 @@ class CdrOutputWriter(OutputWriter):
         pipeline_name: str,
         flush_threshold_bytes: int = 5 * 1024 * 1024,  # i.e. 2MB
         logger=None,
-        label_tracker: LabelStateTracker | None = None,
+        label_tracker=LabelStateTracker
     ):
         """Initialize CDROutput writer."""
         self.bucket = bucket

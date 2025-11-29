@@ -36,6 +36,13 @@ class LabelStateTracker:
         }
         self._values: dict[str, Any] = {}
         self.logger = logger
+        
+        if cfg.mode is LabelMode.LAST:
+            self.updater = self._update_last
+        elif cfg.mode is LabelMode.FIRST:
+            self.updater = self._update_first
+        else:
+            self.updater = self._update_max
 
     def update(self, topic_name, msg):
         """Update label state from a single incoming message."""
@@ -46,16 +53,10 @@ class LabelStateTracker:
                     "Cannot read config for topic " f"'{topic_name}'. Returning ..."
                 )
             return
-        if cfg.mode is LabelMode.LAST:
-            updater = self._update_last
-        elif cfg.mode is LabelMode.FIRST:
-            updater = self._update_first
-        else:
-            updater = self._update_max
 
         for label_name, field_path in cfg.fields.items():
             value = extract_field(msg, field_path)
-            updater(label_name, value)
+            self.updater(label_name, value)
 
     def _update_last(self, label_key: str, value: Any):
         """Use the most recent message (default)."""
@@ -85,20 +86,10 @@ class NullLabelStateTracker(LabelStateTracker):
 
     def __init__(self):
         """Initialize the null object without configuration."""
-        self._values: dict[str, Any] = {}
-        self.logger = None
+        pass
 
     def update(self, topic_name, msg):
         """Do nothing on update, as there is no state to track."""
-        pass
-
-    def _update_last(self, label_key: str, value: Any):
-        pass
-
-    def _update_first(self, label_key: str, value: Any):
-        pass
-
-    def _update_max(self, label_key: str, value: Any):
         pass
 
     def get_labels(self) -> dict[str, str]:
