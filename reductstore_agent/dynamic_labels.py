@@ -36,7 +36,7 @@ class LabelStateTracker:
         }
         self._values: dict[str, Any] = {}
         self.logger = logger
-        
+
         if cfg.mode is LabelMode.LAST:
             self.updater = self._update_last
         elif cfg.mode is LabelMode.FIRST:
