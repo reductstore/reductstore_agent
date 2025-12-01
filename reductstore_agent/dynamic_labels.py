@@ -34,15 +34,18 @@ class LabelStateTracker:
         self._configs: dict[str, LabelTopicConfig] = {
             label_cfg.topic: label_cfg for label_cfg in cfg.labels
         }
-        self._values: dict[str, Any] = {}
         self.logger = logger
+        self._updaters: dict[str, callable] = {}
 
-        if cfg.mode is LabelMode.LAST:
-            self.updater = self._update_last
-        elif cfg.mode is LabelMode.FIRST:
-            self.updater = self._update_first
-        else:
-            self.updater = self._update_max
+        for topic, label_cfg in self._configs.items():
+            if label_cfg.mode is LabelMode.LAST:
+                self._updaters[topic] = self._update_last
+            elif label_cfg.mode is LabelMode.FIRST:
+                self._updaters[topic] = self._update_first
+            else:
+                self._updaters[topic] = self._update_max
+
+        self._values: dict[str, Any] = {}
 
     def update(self, topic_name, msg):
         """Update label state from a single incoming message."""
@@ -53,10 +56,12 @@ class LabelStateTracker:
                     "Cannot read config for topic " f"'{topic_name}'. Returning ..."
                 )
             return
+        
+        updater = self._updaters[topic_name]
 
         for label_name, field_path in cfg.fields.items():
             value = extract_field(msg, field_path)
-            self.updater(label_name, value)
+            updater(label_name, value)
 
     def _update_last(self, label_key: str, value: Any):
         """Use the most recent message (default)."""
