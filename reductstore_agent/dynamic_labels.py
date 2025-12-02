@@ -56,7 +56,7 @@ class LabelStateTracker:
                     "Cannot read config for topic " f"'{topic_name}'. Returning ..."
                 )
             return
-        
+
         updater = self._updaters[topic_name]
 
         for label_name, field_path in cfg.fields.items():
