@@ -66,6 +66,9 @@ class Recorder(Node):
         self.loop = get_or_create_event_loop()
         self.loop.run_until_complete(self.init_reduct_bucket())
 
+        # Configuration Bucket
+        self.loop.run_until_complete(self.init_configuration_bucket())
+
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
@@ -204,6 +207,18 @@ class Recorder(Node):
         )
         self.bucket = await self.client.create_bucket(
             self.storage_config.bucket, settings, exist_ok=True
+        )
+
+    async def init_configuration_bucket(self):
+        """Initialize or create ReductStore configuration bucket."""
+        settings = BucketSettings(
+            quota_type=self.storage_config.quota_type,
+            quota_size=self.storage_config.quota_size,
+            max_block_size=self.storage_config.max_block_size,
+            max_block_records=self.storage_config.max_block_records,
+        )
+        self.bucket = await self.client.create_bucket(
+            "configuration", settings, exist_ok=True
         )
 
     #
