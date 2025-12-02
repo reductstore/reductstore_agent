@@ -26,6 +26,7 @@ from typing import Any, Dict
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
 
+from ..dynamic_labels import LabelStateTracker
 from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
 
@@ -43,6 +44,7 @@ class CdrOutputWriter(OutputWriter):
         pipeline_name: str,
         flush_threshold_bytes: int = 5 * 1024 * 1024,  # i.e. 2MB
         logger=None,
+        label_tracker=LabelStateTracker,
     ):
         """Initialize CDROutput writer."""
         self.bucket = bucket
@@ -52,6 +54,7 @@ class CdrOutputWriter(OutputWriter):
         self._batch_size_bytes: int = 0
         self._is_flushing = False
         self._batch_metadata_size: int = 0
+        self.label_tracker = label_tracker
 
         self._topic_to_msg_type: Dict[str, str] = {}
         if logger is None:
@@ -65,6 +68,9 @@ class CdrOutputWriter(OutputWriter):
         self, serialized_data: bytes, timestamp_us: int, labels: Dict
     ):
         """Upload raw data to ReductStore with labels and timestamp."""
+        # Update dynamic labels
+        labels.update(self.label_tracker.get_labels())
+
         await self.bucket.write(
             entry_name=self.pipeline_name,
             timestamp=timestamp_us,
@@ -74,6 +80,9 @@ class CdrOutputWriter(OutputWriter):
 
     def write_message(self, message: Any, publish_time: int, topic: str, **kwargs):
         """Write message to batch - synchronous interface."""
+        # Process each message and update labels
+        self.label_tracker.update(topic, message)
+
         try:
             serialized_data = serialize_message(message)
         except Exception as exc:
@@ -96,7 +105,6 @@ class CdrOutputWriter(OutputWriter):
         loop = get_or_create_event_loop()
         # Stream message if larger than 100KB
         if len(serialized_data) >= KB_100:
-            self.logger.info("shouldnt be here")
 
             async def upload_large():
                 await self.flush_and_upload_batch()
@@ -123,6 +131,9 @@ class CdrOutputWriter(OutputWriter):
         self, timestamp_us: int, serialized_data: bytes, labels: Dict
     ) -> None:
         """Append raw data to batch."""
+        # Add dynamic labels
+        labels.update(self.label_tracker.get_labels())
+
         self._batch_size_bytes += len(serialized_data)
         self._batch_metadata_size += metadata_size(labels)
         self._batch.add(timestamp=timestamp_us, data=serialized_data, labels=labels)

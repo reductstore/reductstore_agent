@@ -22,6 +22,7 @@
 
 from reduct import Bucket
 
+from ..dynamic_labels import LabelStateTracker, NullLabelStateTracker
 from ..models import OutputFormat, PipelineConfig
 from .base import OutputWriter
 from .cdr import CdrOutputWriter
@@ -34,7 +35,7 @@ def create_writer(
     """
     Create an appropriate output writer based on configuration.
 
-    Args
+    Args:
     ----
     config : PipelineConfig
         Pipeline configuration
@@ -44,25 +45,31 @@ def create_writer(
         Name of the pipeline
     logger : optional
         Optional logger
-
     Returns
     -------
     OutputWriter
         Configured writer instance
 
     """
+    if config.labels:
+        tracker_instance = LabelStateTracker(config, logger)
+    else:
+        tracker_instance = NullLabelStateTracker()
+
     if config.output_format == OutputFormat.MCAP:
         return McapOutputWriter(
             bucket=bucket,
             pipeline_name=pipeline_name or "default",
             config=config,
             logger=logger,
+            label_tracker=tracker_instance,
         )
     elif config.output_format == OutputFormat.CDR:
         return CdrOutputWriter(
             bucket=bucket,
             pipeline_name=pipeline_name or "default",
             logger=logger,
+            label_tracker=tracker_instance,
         )
     else:
         raise ValueError(f"Unsupported output format: {config.output_format}")

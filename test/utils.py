@@ -20,19 +20,20 @@
 
 """Utilities for testing purposes."""
 import rclpy
-from std_msgs.msg import String
+from rclpy.publisher import Publisher
+from std_msgs.msg import Float32, Int32, String
 
 
 async def fetch_and_count_records(
     client,
     bucket_name: str,
     entry_name: str,
-) -> int:
-    """Fetch and verify record count."""
+):
+    """Fetch and return records."""
     bucket = await client.get_bucket(bucket_name)
     output = []
     async for record in bucket.query(entry_name):
-        output.append(await record.read_all())
+        output.append(record)
     return output
 
 
@@ -81,3 +82,60 @@ def generate_string(size_kb: int = 150) -> String:
     msg = String()
     msg.data = "X" * data_size_bytes
     return msg
+
+
+def publish_and_spin_messages_multi(
+    publisher_node,
+    publishers: dict[str, Publisher],
+    recorder,
+    wait_for_subscription: bool = True,
+    n_msg: int = 1,
+):
+    """Publish messages for dynamic labels and spin nodes to process it."""
+    logger = publisher_node.get_logger()
+
+    if wait_for_subscription:
+        # Wait for recorder to be ready and subscribed
+        logger.info("Waiting for recorder to initialize and subscribe...")
+        for _ in range(15):  # Up to 3 seconds
+            rclpy.spin_once(recorder, timeout_sec=0.2)
+            # Check if subscriptions are active by looking at subscriber count
+            if len(recorder.subscribers) >= len(publishers):
+                logger.info(
+                    "Recorder subscription detected, proceeding with publish..."
+                )
+                break
+        else:
+            logger.warning("Recorder subscription not detected, proceeding anyway...")
+
+    # Publish the messages
+    for i in range(n_msg):
+        current_speed = 50 + i * 10
+        current_mission_id = f"Run_{i}"
+        current_voltage = 12.0 - i * 0.1
+
+        for topic_name, pub_object in publishers.items():
+            if topic_name == "/telemetry":
+                msg = Int32()
+                msg.data = current_speed
+
+            elif topic_name == "/startup_config":
+                msg = Float32()
+                msg.data = float(current_voltage)
+
+            elif topic_name == "/mission_info":
+                msg = String()
+                msg.data = current_mission_id
+
+            else:
+                msg = String()
+                msg.data = f"generic_msg_{i}"
+
+            pub_object.publish(msg)
+            logger.info(f"Publishing cycle {i} on topic: {topic_name}")
+            # Allow processing time
+            rclpy.spin_once(publisher_node, timeout_sec=0.1)
+            rclpy.spin_once(recorder, timeout_sec=0.1)
+            rclpy.spin_once(recorder, timeout_sec=0.1)
+
+    rclpy.spin_once(recorder, timeout_sec=2.0)

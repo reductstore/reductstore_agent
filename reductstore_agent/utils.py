@@ -88,3 +88,21 @@ def ns_to_us(ns: int) -> int:
 def metadata_size(labels: dict) -> int:
     """Return byte size of metadata."""
     return len(json.dumps(labels, separators=(",", ":")).encode("utf-8"))
+
+
+def extract_field(msg, field_path):
+    """Return the value of a specific msg_field."""
+    attrs = field_path.split(".")
+    value = msg
+    for attr in attrs:
+        try:
+            value = getattr(value, attr)
+        except AttributeError:
+            try:
+                value = value[attr]
+            except (KeyError, TypeError):
+                raise ValueError(
+                    f"Field path '{field_path}' failed at attribute/key '{attr}'. "
+                    "Key not found or object is incompatible."
+                )
+    return value
