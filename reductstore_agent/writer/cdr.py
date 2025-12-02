@@ -105,7 +105,6 @@ class CdrOutputWriter(OutputWriter):
         loop = get_or_create_event_loop()
         # Stream message if larger than 100KB
         if len(serialized_data) >= KB_100:
-            self.logger.info("shouldnt be here")
 
             async def upload_large():
                 await self.flush_and_upload_batch()

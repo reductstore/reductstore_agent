@@ -25,15 +25,15 @@ from reductstore_agent.utils import get_or_create_event_loop
 from ..utils import fetch_and_count_records, publish_and_spin_messages_multi
 
 
-def test_dynamic_label(
-    reduct_client, publisher_node, label_publishers, dynamic_label_recorder
+def test_dynamic_label_mcap(
+    reduct_client, publisher_node, label_publishers_mcap, dynamic_label_recorder_mcap
 ):
     """Test that the recorder correctly uses all modes."""
     BUCKET_NAME = "test_bucket"
     ENTRY_NAME = "test"
 
     publish_and_spin_messages_multi(
-        publisher_node, label_publishers, dynamic_label_recorder, True, 5
+        publisher_node, label_publishers_mcap, dynamic_label_recorder_mcap, True, 5
     )
 
     loop = get_or_create_event_loop()
@@ -51,3 +51,34 @@ def test_dynamic_label(
     assert labels.get("initial_voltage") == "12.0"  # FIRST
     assert labels.get("max_speed") == "90"  # MAX
     assert labels.get("mission_id") == "Run_4"  # LAST
+
+
+def test_dynamic_label_cdr(
+    reduct_client, publisher_node, label_publishers_cdr, dynamic_label_recorder_cdr
+):
+    """Test that the recorder correctly uses dynamic labels with CDR."""
+    BUCKET_NAME = "test_bucket"
+    ENTRY_NAME = "test"
+
+    publish_and_spin_messages_multi(
+        publisher_node, label_publishers_cdr, dynamic_label_recorder_cdr, True, 5
+    )
+    # Simulate shutdown because not enough messages
+    for state in dynamic_label_recorder_cdr.pipeline_states.values():
+        state.writer.flush_on_shutdown()
+
+    loop = get_or_create_event_loop()
+    records = loop.run_until_complete(
+        fetch_and_count_records(
+            reduct_client,
+            BUCKET_NAME,
+            ENTRY_NAME,
+        )
+    )
+    assert len(records) == 15
+    last_record = records[-1]
+    labels = last_record.labels
+
+    assert labels.get("initial_voltage") == "12.0"
+    assert labels.get("max_speed") == "90"
+    assert labels.get("mission_id") == "Run_4"

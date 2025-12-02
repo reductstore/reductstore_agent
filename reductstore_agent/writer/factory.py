@@ -52,10 +52,7 @@ def create_writer(
 
     """
     if config.labels:
-        if config.output_format == OutputFormat.MCAP:
-            tracker_instance = LabelStateTracker(config, logger)
-        else:
-            tracker_instance = NullLabelStateTracker()
+        tracker_instance = LabelStateTracker(config, logger)
     else:
         tracker_instance = NullLabelStateTracker()
 
