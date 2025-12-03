@@ -68,6 +68,32 @@ class StorageConfig(BaseModel):
         return parse_bytes_with_si_units(value)
 
 
+class ConfigurationConfig(BaseModel):
+    """Configuration for the reductstore_agent package."""
+
+    url: str
+    api_token: str
+    bucket: str
+    entry: str
+    pull_frequency_s: int = Field(60, ge=60, le=86400)
+
+    @field_validator("url", "bucket", "entry", "api_token")
+    @classmethod
+    def not_empty(cls, v, info):
+        """Ensure string fields are not empty."""
+        if not v.strip():
+            raise ValueError(f"'{info.field_name}' must not be empty")
+        return v
+    
+    @field_validator("pull_frequency_s")
+    @classmethod
+    def validate_pull_frequency(cls, value):
+        """Validate pull frequency is within acceptable range."""
+        if not (60 <= value <= 86400):
+            raise ValueError("'pull_frequency_s' must be between 60 and 86400 seconds")
+        return value
+
+
 class FilenameMode(str, Enum):
     """Filename mode for pipeline segments."""
 

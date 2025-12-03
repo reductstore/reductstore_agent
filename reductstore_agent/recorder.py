@@ -26,6 +26,7 @@ from collections import defaultdict
 from typing import Any
 
 import rclpy
+import yaml
 from rclpy.impl.logging_severity import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
@@ -34,7 +35,7 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 
 from .downsampler import Downsampler
-from .models import OutputFormat, PipelineConfig, StorageConfig
+from .models import ConfigurationConfig, OutputFormat, PipelineConfig, StorageConfig
 from .state import PipelineState
 from .utils import get_or_create_event_loop
 from .writer import create_writer
@@ -56,6 +57,7 @@ class Recorder(Node):
 
         # Parameters
         self.storage_config = self.load_storage_config()
+        self.configuration_config = self.load_configuration_config()
         self.pipeline_configs = self.load_pipeline_config()
 
         # ReductStore
@@ -87,6 +89,10 @@ class Recorder(Node):
             self.destroy_timer(timer)
 
         timer = self.create_timer(delay, _delayed_setup)
+        pull_timer = self.create_timer(
+            self.configuration_config.pull_frequency_s,
+            lambda: self.loop.create_task(self.check_configuration_updates()),
+        )
 
     def log_info(self, msg_fn):
         """Log an info message if enabled."""
@@ -127,6 +133,26 @@ class Recorder(Node):
                 params[key] = self.get_parameter(param).value
 
         return StorageConfig(**params)
+
+    def load_configuration_config(self):
+        """Parse and validate configuration params."""
+        required_keys = ["url", "api_token", "bucket", "entry"]
+        optional_keys = ["pull_frequency_s"]
+
+        params = {}
+
+        for key in required_keys:
+            param = f"configuration.{key}"
+            if not self.has_parameter(param):
+                raise ValueError(f"Missing parameter: '{param}'")
+            params[key] = self.get_parameter(param).valueq
+
+        for key in optional_keys:
+            param = f"configuration.{key}"
+            if self.has_parameter(param):
+                params[key] = self.get_parameter(param).value
+
+        return ConfigurationConfig(**params)
 
     def load_pipeline_config(self) -> dict[str, PipelineConfig]:
         """Parse and validate pipeline parameters."""
@@ -254,6 +280,8 @@ class Recorder(Node):
                     autostart=False,
                 )
                 state.timer = timer
+                # Add shutdown callback for flushing
+                self.context.on_shutdown(writer.flush_on_shutdown)
             else:
                 # Add shutdown callback for flushing
                 state.timer = None
@@ -418,7 +446,51 @@ class Recorder(Node):
             self.warned_topics.add(topic_name)
 
         return self.get_clock().now().nanoseconds
+    #
+    # Configuration
+    #
+    async def read_configuration_bucket(self) -> Client:
+        """Read configuration bucket from ReductStore."""
+        config_bucket = await self.client.get_bucket("configuration")
+        entry_name = self.configuration_config.entry
+        entry = await config_bucket.get_entry(entry_name)
+        async with entry.read() as record:
+            data = await record.read_all()
+            yaml_str = data.decode("utf-8")
+        return yaml_str
+    
+    async def check_configuration_updates(self):
+        """Periodically check for configuration updates."""
 
+        while rclpy.ok():
+            try:
+                yaml_str = await self.read_configuration_bucket()
+                self.reload_configuration(yaml_str)
+            except Exception as exc:
+                self.log_warn(lambda: f"Failed to fetch configuration: {exc}")
+
+    def reload_configuration(self, yaml_str: str):
+        """Reload storage and pipeline configuration at runtime."""
+        new_config = self.validate_config(yaml_str)
+        if new_config:
+            self.storage_config = new_config.storage_config
+            self.pipeline_configs = new_config.pipeline_configs
+            self.log_info(lambda: "Configuration reloaded successfully.")
+        else:
+            self.log_warn(lambda: "Configuration reload failed. Using previous valid configuration.")
+
+
+    def validate_config(self, yaml_str: str):
+        """Validate fetched config, if not valid use past valid config."""
+        try:
+            loaded_data = yaml.safe_load(yaml_str)
+            storage_cfg = StorageConfig(**loaded_data.get("storage", {}))
+            pipeline_cfgs = {name: PipelineConfig(**cfg) for name, cfg in loaded_data.get("pipelines", {}).items()}
+            self.storage_config = storage_cfg
+            self.pipeline_configs = pipeline_cfgs
+            self.log_info(lambda: "Configuration validated and applied.")
+        except Exception as exc:
+            self.log_warn(lambda: f"Configuration validation failed: {exc}. Using previous valid configuration.") 
     #
     # Message Processing
     #
@@ -493,6 +565,11 @@ class Recorder(Node):
                 state.timer.reset()
         except Exception:
             self.log_warn(lambda: f"[{pipeline_name}] Upload failed.")
+
+    def restart_recorder(self):
+        """Restart the recorder node."""
+        self.get_logger().info("Restarting Recorder node...")
+        self.destroy_node()
 
 
 def main():
