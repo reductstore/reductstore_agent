@@ -23,7 +23,7 @@
 import re
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from reduct import QuotaType
 
 from .utils import parse_bytes_with_si_units
@@ -92,6 +92,16 @@ class ConfigurationConfig(BaseModel):
         if not (60 <= value <= 86400):
             raise ValueError("'pull_frequency_s' must be between 60 and 86400 seconds")
         return value
+
+    @model_validator(mode="after")
+    def only_one_config_allowed(cls, values):
+        config = values.get('configurationConfig')
+        pipeline = values.get('pipelineConfig')
+        if config and pipeline:
+            raise ValueError("Only one of configurationConfig or pipelineConfig can be set, not both.")
+        if not config and not pipeline:
+            raise ValueError("At least one of configurationConfig or pipelineConfig must be set.")
+        return values
 
 
 class FilenameMode(str, Enum):

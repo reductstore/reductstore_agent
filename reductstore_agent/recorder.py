@@ -57,7 +57,7 @@ class Recorder(Node):
 
         # Parameters
         self.storage_config = self.load_storage_config()
-        self.configuration_config = self.load_configuration_config()
+        # self.configuration_config = self.load_configuration_config()
         self.pipeline_configs = self.load_pipeline_config()
 
         # ReductStore
