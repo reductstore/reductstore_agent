@@ -54,22 +54,26 @@ class Recorder(Node):
         )
         self.logger = self.get_logger()
         self.warned_topics: set[str] = set()
+        self.loop = get_or_create_event_loop()
 
         # Parameters
         self.storage_config = self.load_storage_config()
-        # self.configuration_config = self.load_configuration_config()
         self.pipeline_configs = self.load_pipeline_config()
+        try:
+            self.configuration_config = self.load_configuration_config()
+            if self.configuration_config:
+                self.log_info(lambda: "Configuration management enabled.")
+                self.loop.run_until_complete(self.init_configuration_bucket())
+                self.loop.run_until_complete(self.check_configuration_updates())
+        except Exception:
+            self.configuration_config = None
 
         # ReductStore
         self.client = Client(
             self.storage_config.url, api_token=self.storage_config.api_token
         )
         self.bucket = None
-        self.loop = get_or_create_event_loop()
         self.loop.run_until_complete(self.init_reduct_bucket())
-
-        # Configuration Bucket
-        self.loop.run_until_complete(self.init_configuration_bucket())
 
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
@@ -89,10 +93,11 @@ class Recorder(Node):
             self.destroy_timer(timer)
 
         timer = self.create_timer(delay, _delayed_setup)
-        pull_timer = self.create_timer(
-            self.configuration_config.pull_frequency_s,
-            lambda: self.loop.create_task(self.check_configuration_updates()),
-        )
+        if self.configuration_config:
+            self.pull_timer = self.create_timer(
+                self.configuration_config.pull_frequency_s,
+                lambda: self.loop.create_task(self.check_configuration_updates()),
+            )
 
     def log_info(self, msg_fn):
         """Log an info message if enabled."""
@@ -446,6 +451,7 @@ class Recorder(Node):
             self.warned_topics.add(topic_name)
 
         return self.get_clock().now().nanoseconds
+
     #
     # Configuration
     #
@@ -458,39 +464,44 @@ class Recorder(Node):
             data = await record.read_all()
             yaml_str = data.decode("utf-8")
         return yaml_str
-    
+
     async def check_configuration_updates(self):
         """Periodically check for configuration updates."""
-
-        while rclpy.ok():
-            try:
-                yaml_str = await self.read_configuration_bucket()
-                self.reload_configuration(yaml_str)
-            except Exception as exc:
-                self.log_warn(lambda: f"Failed to fetch configuration: {exc}")
+        try:
+            yaml_str = await self.read_configuration_bucket()
+            self.reload_configuration(yaml_str)
+        except Exception:
+            self.log_warn(lambda: "Failed to fetch configuration")
 
     def reload_configuration(self, yaml_str: str):
-        """Reload storage and pipeline configuration at runtime."""
+        """Reload pipeline configuration."""
         new_config = self.validate_config(yaml_str)
-        if new_config:
-            self.storage_config = new_config.storage_config
+        if new_config and new_config.pipeline_configs != self.pipeline_configs:
             self.pipeline_configs = new_config.pipeline_configs
             self.log_info(lambda: "Configuration reloaded successfully.")
+            self.restart_recorder()
         else:
-            self.log_warn(lambda: "Configuration reload failed. Using previous valid configuration.")
-
+            self.log_warn(
+                lambda: "Configuration reload failed."
+                " Using previous valid configuration."
+            )
 
     def validate_config(self, yaml_str: str):
         """Validate fetched config, if not valid use past valid config."""
         try:
             loaded_data = yaml.safe_load(yaml_str)
-            storage_cfg = StorageConfig(**loaded_data.get("storage", {}))
-            pipeline_cfgs = {name: PipelineConfig(**cfg) for name, cfg in loaded_data.get("pipelines", {}).items()}
-            self.storage_config = storage_cfg
+            pipeline_cfgs = {
+                name: PipelineConfig(**cfg)
+                for name, cfg in loaded_data.get("pipelines", {}).items()
+            }
             self.pipeline_configs = pipeline_cfgs
             self.log_info(lambda: "Configuration validated and applied.")
-        except Exception as exc:
-            self.log_warn(lambda: f"Configuration validation failed: {exc}. Using previous valid configuration.") 
+        except Exception:
+            self.log_warn(
+                lambda: "Configuration validation failed. "
+                "Using previous valid configuration."
+            )
+
     #
     # Message Processing
     #
