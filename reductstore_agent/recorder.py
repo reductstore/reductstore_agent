@@ -35,7 +35,7 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 
 from .downsampler import Downsampler
-from .models import ConfigurationConfig, OutputFormat, PipelineConfig, StorageConfig
+from .models import OutputFormat, PipelineConfig, RemoteConfig, StorageConfig
 from .state import PipelineState
 from .utils import get_or_create_event_loop
 from .writer import create_writer
@@ -59,14 +59,12 @@ class Recorder(Node):
         # Parameters
         self.storage_config = self.load_storage_config()
         self.pipeline_configs = self.load_pipeline_config()
-        try:
-            self.configuration_config = self.load_configuration_config()
-            if self.configuration_config:
-                self.log_info(lambda: "Configuration management enabled.")
-                self.loop.run_until_complete(self.init_configuration_bucket())
-                self.loop.run_until_complete(self.check_configuration_updates())
-        except Exception:
-            self.configuration_config = None
+        self.remote_config = self.load_remote_config()
+        if self.remote_config:
+            self.log_info(lambda: "Configuration management enabled.")
+            self.loop.run_until_complete(self.check_remote_updates())
+        else:
+            self.remote_config = None
 
         # ReductStore
         self.client = Client(
@@ -139,7 +137,7 @@ class Recorder(Node):
 
         return StorageConfig(**params)
 
-    def load_configuration_config(self):
+    def load_remote_config(self):
         """Parse and validate configuration params."""
         required_keys = ["url", "api_token", "bucket", "entry"]
         optional_keys = ["pull_frequency_s"]
@@ -149,15 +147,16 @@ class Recorder(Node):
         for key in required_keys:
             param = f"configuration.{key}"
             if not self.has_parameter(param):
-                raise ValueError(f"Missing parameter: '{param}'")
-            params[key] = self.get_parameter(param).valueq
+                self.logger.info("No remote configuration parameters found.")
+                return None
+            params[key] = self.get_parameter(param).value
 
         for key in optional_keys:
             param = f"configuration.{key}"
             if self.has_parameter(param):
                 params[key] = self.get_parameter(param).value
 
-        return ConfigurationConfig(**params)
+        return RemoteConfig(**params)
 
     def load_pipeline_config(self) -> dict[str, PipelineConfig]:
         """Parse and validate pipeline parameters."""
@@ -369,7 +368,7 @@ class Recorder(Node):
         for pipeline_name in new_pipelines - current_pipelines:
             cfg = new_configs[pipeline_name]
             self.pipeline_configs[pipeline_name] = cfg
-            self.init_pipeline_writers()
+            # Need to init a single pipeline
 
         # Modified pipelines
         for pipeline_name in current_pipelines & new_pipelines:
@@ -498,38 +497,40 @@ class Recorder(Node):
         return self.get_clock().now().nanoseconds
 
     #
-    # Configuration
+    # Remote Configuration
     #
-    async def read_configuration_bucket(self) -> Client:
+    async def read_remote_bucket(self) -> str:
         """Read configuration bucket from ReductStore."""
         config_bucket = await self.client.get_bucket("configuration")
-        entry_name = self.configuration_config.entry
+        entry_name = self.remote_config.entry
         entry = await config_bucket.get_entry(entry_name)
         async with entry.read() as record:
             data = await record.read_all()
             yaml_str = data.decode("utf-8")
         return yaml_str
 
-    async def check_configuration_updates(self):
+    async def check_remote_updates(self):
         """Periodically check for configuration updates."""
         try:
-            yaml_str = await self.read_configuration_bucket()
+            yaml_str = await self.read_remote_bucket()
             self.reload_configuration(yaml_str)
-        except Exception:
-            self.log_warn(lambda: "Failed to fetch configuration")
+        except Exception as exc:
+            self.log_warn(f"Failed to fetch configuration: {exc}")
 
-    def reload_configuration(self, yaml_str: str):
+    def reload_pipeline_configuration(self, yaml_str: str):
         """Reload pipeline configuration."""
         new_config = self.validate_config(yaml_str)
-        if new_config and new_config.pipeline_configs != self.pipeline_configs:
+        if new_config is None:
+            self.log_warn(
+                lambda: "Failed to validate new configuration. "
+                "Keeping existing configuration."
+            )
+        elif new_config.pipeline_configs == self.pipeline_configs:
+            self.log_info(lambda: "No changes in pipeline configuration.")
+        else:
             self.check_diff_pipelines(new_config.pipeline_configs)
             self.pipeline_configs = new_config.pipeline_configs
-            self.log_info(lambda: "Configuration reloaded.")
-        else:
-            self.log_warn(
-                lambda: "Configuration reload failed."
-                " Using previous valid configuration."
-            )
+            self.log_info(lambda: "Pipeline configuration updated.")
 
     def validate_config(self, yaml_str: str):
         """Validate fetched config, if not valid use past valid config."""
@@ -539,11 +540,11 @@ class Recorder(Node):
                 name: PipelineConfig(**cfg)
                 for name, cfg in loaded_data.get("pipelines", {}).items()
             }
-            self.log_info(lambda: "Configuration validated.")
-            return ConfigurationConfig(pipeline_configs=pipeline_cfgs)
-        except Exception:
+            self.log_info(lambda: "Pipeline Configuration validated.")
+            return RemoteConfig(pipeline_configs=pipeline_cfgs)
+        except Exception as exc:
             self.log_warn(
-                lambda: "Configuration validation failed. "
+                f"Configuration validation failed: {exc}. "
                 "Using previous valid configuration."
             )
 

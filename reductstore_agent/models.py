@@ -68,8 +68,8 @@ class StorageConfig(BaseModel):
         return parse_bytes_with_si_units(value)
 
 
-class ConfigurationConfig(BaseModel):
-    """Configuration for the reductstore_agent package."""
+class RemoteConfig(BaseModel):
+    """Remote Configuration for remote configuration management and auto-sync."""
 
     url: str
     api_token: str
@@ -84,14 +84,6 @@ class ConfigurationConfig(BaseModel):
         if not v.strip():
             raise ValueError(f"'{info.field_name}' must not be empty")
         return v
-
-    @field_validator("pull_frequency_s")
-    @classmethod
-    def validate_pull_frequency(cls, value):
-        """Validate pull frequency is within acceptable range."""
-        if not (60 <= value <= 86400):
-            raise ValueError("'pull_frequency_s' must be between 60 and 86400 seconds")
-        return value
 
 
 class FilenameMode(str, Enum):
