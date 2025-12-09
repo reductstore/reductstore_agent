@@ -76,7 +76,8 @@ class Recorder(Node):
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
-        self.init_pipeline_writers()
+        for name, cfg in self.pipeline_configs.items():
+            self.init_pipeline_writer(name, cfg)
 
         # Delay topic subscriptions
         delay = self.load_delay_config()
@@ -254,7 +255,7 @@ class Recorder(Node):
     #
     # Pipeline Writers Initialization
     #
-    def init_pipeline_writers(self):
+    def init_pipeline_writer(self, pipeline_name: str, cfg: PipelineConfig):
         """
         Create an MCAP/CDR writer for each pipeline.
 
@@ -264,39 +265,38 @@ class Recorder(Node):
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
 
-        for pipeline_name, cfg in self.pipeline_configs.items():
-            duration = cfg.split_max_duration_s
-            topics = self.resolve_topics(cfg, all_topics)
-            if not topics and cfg.include_topics:
-                topics = set(cfg.include_topics)
+        duration = cfg.split_max_duration_s
+        topics = self.resolve_topics(cfg, all_topics)
+        if not topics and cfg.include_topics:
+            topics = set(cfg.include_topics)
 
-            writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
-            state = PipelineState(
-                topics=topics,
-                writer=writer,
-                downsampler=Downsampler(cfg),
+        writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
+        state = PipelineState(
+            topics=topics,
+            writer=writer,
+            downsampler=Downsampler(cfg),
+        )
+
+        if cfg.output_format == OutputFormat.MCAP:
+            timer = self.create_timer(
+                float(duration),
+                self.make_timer_callback(pipeline_name, state),
+                autostart=False,
             )
+            state.timer = timer
+            # Add shutdown callback for flushing
+            self.context.on_shutdown(writer.flush_on_shutdown)
+        else:
+            # Add shutdown callback for flushing
+            state.timer = None
+            self.context.on_shutdown(writer.flush_on_shutdown)
 
-            if cfg.output_format == OutputFormat.MCAP:
-                timer = self.create_timer(
-                    float(duration),
-                    self.make_timer_callback(pipeline_name, state),
-                    autostart=False,
-                )
-                state.timer = timer
-                # Add shutdown callback for flushing
-                self.context.on_shutdown(writer.flush_on_shutdown)
-            else:
-                # Add shutdown callback for flushing
-                state.timer = None
-                self.context.on_shutdown(writer.flush_on_shutdown)
+        self.pipeline_states[pipeline_name] = state
 
-            self.pipeline_states[pipeline_name] = state
-
-            self.log_info(
-                lambda: f"[{pipeline_name}] Pipeline writer "
-                f"initialized with config:\n{cfg.format_for_log()}"
-            )
+        self.log_info(
+            lambda: f"[{pipeline_name}] Pipeline writer "
+            f"initialized with config:\n{cfg.format_for_log()}"
+        )
 
     def start_pipeline_timers(self):
         """Start all pipeline timers after topic subscriptions are set up."""
@@ -368,7 +368,7 @@ class Recorder(Node):
         for pipeline_name in new_pipelines - current_pipelines:
             cfg = new_configs[pipeline_name]
             self.pipeline_configs[pipeline_name] = cfg
-            # Need to init a single pipeline
+            self.init_pipeline_writer(pipeline_name, cfg)
 
         # Modified pipelines
         for pipeline_name in current_pipelines & new_pipelines:
@@ -547,6 +547,7 @@ class Recorder(Node):
                 f"Configuration validation failed: {exc}. "
                 "Using previous valid configuration."
             )
+            return None
 
     #
     # Message Processing
