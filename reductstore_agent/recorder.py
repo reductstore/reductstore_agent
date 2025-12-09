@@ -60,11 +60,6 @@ class Recorder(Node):
         self.storage_config = self.load_storage_config()
         self.pipeline_configs = self.load_pipeline_config()
         self.remote_config = self.load_remote_config()
-        if self.remote_config:
-            self.log_info(lambda: "Configuration management enabled.")
-            self.loop.run_until_complete(self.check_remote_updates())
-        else:
-            self.remote_config = None
 
         # ReductStore
         self.client = Client(
@@ -72,6 +67,11 @@ class Recorder(Node):
         )
         self.bucket = None
         self.loop.run_until_complete(self.init_reduct_bucket())
+        # Should first read from local config, then override with remote
+        # Timer should do it.
+        # if self.remote_config:
+        #     self.log_info(lambda: "Configuration management enabled.")
+        #     self.loop.run_until_complete(self.check_remote_updates())
 
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
@@ -240,18 +240,6 @@ class Recorder(Node):
             self.storage_config.bucket, settings, exist_ok=True
         )
 
-    async def init_configuration_bucket(self):
-        """Initialize or create ReductStore configuration bucket."""
-        settings = BucketSettings(
-            quota_type=self.storage_config.quota_type,
-            quota_size=self.storage_config.quota_size,
-            max_block_size=self.storage_config.max_block_size,
-            max_block_records=self.storage_config.max_block_records,
-        )
-        self.bucket = await self.client.create_bucket(
-            "configuration", settings, exist_ok=True
-        )
-
     #
     # Pipeline Writers Initialization
     #
@@ -322,6 +310,9 @@ class Recorder(Node):
         state.is_uploading = False
         if state.timer:
             state.timer.reset()
+        else:
+            # Add shutdown callback for flushing (CDR Output)
+            self.context.on_shutdown(state.writer.flush_on_shutdown)
 
         # Clear topics and schemas
         state.schema_by_type.clear()
@@ -369,6 +360,9 @@ class Recorder(Node):
             cfg = new_configs[pipeline_name]
             self.pipeline_configs[pipeline_name] = cfg
             self.init_pipeline_writer(pipeline_name, cfg)
+        # Ensure new pipeline topics are subscribed
+        if new_pipelines - current_pipelines:
+            self.setup_topic_subscriptions()
 
         # Modified pipelines
         for pipeline_name in current_pipelines & new_pipelines:
@@ -501,9 +495,9 @@ class Recorder(Node):
     #
     async def read_remote_bucket(self) -> str:
         """Read configuration bucket from ReductStore."""
-        config_bucket = await self.client.get_bucket("configuration")
+        remote_bucket = await self.client.get_bucket(self.remote_config.bucket)
         entry_name = self.remote_config.entry
-        entry = await config_bucket.get_entry(entry_name)
+        entry = await remote_bucket.get_entry(entry_name)
         async with entry.read() as record:
             data = await record.read_all()
             yaml_str = data.decode("utf-8")
@@ -513,7 +507,7 @@ class Recorder(Node):
         """Periodically check for configuration updates."""
         try:
             yaml_str = await self.read_remote_bucket()
-            self.reload_configuration(yaml_str)
+            self.reload_pipeline_configuration(yaml_str)
         except Exception as exc:
             self.log_warn(f"Failed to fetch configuration: {exc}")
 
