@@ -523,6 +523,7 @@ class Recorder(Node):
         new_config = self.validate_config(yaml_str)
         if new_config and new_config.pipeline_configs != self.pipeline_configs:
             self.check_diff_pipelines(new_config.pipeline_configs)
+            self.pipeline_configs = new_config.pipeline_configs
             self.log_info(lambda: "Configuration reloaded.")
         else:
             self.log_warn(
@@ -538,14 +539,13 @@ class Recorder(Node):
                 name: PipelineConfig(**cfg)
                 for name, cfg in loaded_data.get("pipelines", {}).items()
             }
-            self.pipeline_configs = pipeline_cfgs
-            self.log_info(lambda: "Configuration validated and applied.")
+            self.log_info(lambda: "Configuration validated.")
+            return ConfigurationConfig(pipeline_configs=pipeline_cfgs)
         except Exception:
             self.log_warn(
                 lambda: "Configuration validation failed. "
                 "Using previous valid configuration."
             )
-
     #
     # Message Processing
     #
