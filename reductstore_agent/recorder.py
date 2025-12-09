@@ -546,6 +546,7 @@ class Recorder(Node):
                 lambda: "Configuration validation failed. "
                 "Using previous valid configuration."
             )
+
     #
     # Message Processing
     #
