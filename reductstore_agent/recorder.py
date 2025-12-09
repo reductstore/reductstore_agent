@@ -92,10 +92,10 @@ class Recorder(Node):
             self.destroy_timer(timer)
 
         timer = self.create_timer(delay, _delayed_setup)
-        if self.configuration_config:
+        if self.remote_config:
             self.pull_timer = self.create_timer(
-                self.configuration_config.pull_frequency_s,
-                lambda: self.loop.create_task(self.check_configuration_updates()),
+                self.remote_config.pull_frequency_s,
+                lambda: self.loop.create_task(self.check_remote_updates()),
             )
 
     def log_info(self, msg_fn):
