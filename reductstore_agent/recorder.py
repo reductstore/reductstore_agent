@@ -340,6 +340,51 @@ class Recorder(Node):
             lambda: f"[{pipeline_name}] Pipeline writer reset - ready for next segment"
         )
 
+    def remove_pipeline(self, pipeline_name: str):
+        """Remove pipeline state and stop its timer."""
+        state = self.pipeline_states.get(pipeline_name)
+        if not state:
+            return
+
+        if state.timer:
+            self.destroy_timer(state.timer)
+
+        del self.pipeline_states[pipeline_name]
+        self.log_info(lambda: f"[{pipeline_name}] Pipeline removed.")
+
+    def check_diff_pipelines(self, new_configs: dict[str, PipelineConfig]):
+        """Check for added, removed, or modified pipelines."""
+        current_pipelines = set(self.pipeline_configs.keys())
+        new_pipelines = set(new_configs.keys())
+
+        # Removed pipelines
+        for pipeline_name in current_pipelines - new_pipelines:
+            self.log_info(lambda: f"[{pipeline_name}] Pipeline flushed and removed.")
+            self.loop.run_until_complete(
+                self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
+            )
+            self.remove_pipeline(pipeline_name)
+
+        # Added pipelines
+        for pipeline_name in new_pipelines - current_pipelines:
+            cfg = new_configs[pipeline_name]
+            self.pipeline_configs[pipeline_name] = cfg
+            self.init_pipeline_writers()
+
+        # Modified pipelines
+        for pipeline_name in current_pipelines & new_pipelines:
+            if self.pipeline_configs[pipeline_name] != new_configs[pipeline_name]:
+                self.log_info(
+                    lambda: f"[{pipeline_name}] Pipeline configuration changed. "
+                    "Flushing and Resetting pipeline."
+                )
+                self.loop.run_until_complete(
+                    self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
+                )
+                self.pipeline_configs[pipeline_name] = new_configs[pipeline_name]
+                state = self.pipeline_states[pipeline_name]
+                self.reset_pipeline_state(pipeline_name, state)
+
     #
     # Topic Subscription
     #
@@ -477,9 +522,8 @@ class Recorder(Node):
         """Reload pipeline configuration."""
         new_config = self.validate_config(yaml_str)
         if new_config and new_config.pipeline_configs != self.pipeline_configs:
-            self.pipeline_configs = new_config.pipeline_configs
-            self.log_info(lambda: "Configuration reloaded successfully.")
-            self.restart_recorder()
+            self.check_diff_pipelines(new_config.pipeline_configs)
+            self.log_info(lambda: "Configuration reloaded.")
         else:
             self.log_warn(
                 lambda: "Configuration reload failed."
@@ -576,11 +620,6 @@ class Recorder(Node):
                 state.timer.reset()
         except Exception:
             self.log_warn(lambda: f"[{pipeline_name}] Upload failed.")
-
-    def restart_recorder(self):
-        """Restart the recorder node."""
-        self.get_logger().info("Restarting Recorder node...")
-        self.destroy_node()
 
 
 def main():
