@@ -67,11 +67,34 @@ class Recorder(Node):
         )
         self.bucket = None
         self.loop.run_until_complete(self.init_reduct_bucket())
-        # Should first read from local config, then override with remote
-        # Timer should do it.
-        # if self.remote_config:
-        #     self.log_info(lambda: "Configuration management enabled.")
-        #     self.loop.run_until_complete(self.check_remote_updates())
+        if self.remote_config:
+            self.log_info(lambda: "Configuration management enabled.")
+            self.loop.run_until_complete(self.check_remote_updates())
+        else:
+            # Read backup config from config/config_backup.yml
+            import os
+
+            backup_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..",
+                "config",
+                "config_backup.yml",
+            )
+            if os.path.exists(backup_path):
+                with open(backup_path, "r") as f:
+                    backup_data = yaml.safe_load(f)
+                if "storage" in backup_data:
+                    self.storage_config = StorageConfig(**backup_data["storage"])
+                if "pipelines" in backup_data:
+                    self.pipeline_configs = {
+                        name: PipelineConfig(**cfg)
+                        for name, cfg in backup_data["pipelines"].items()
+                    }
+                if "remote_config" in backup_data:
+                    self.remote_config = RemoteConfig(**backup_data["remote_config"])
+                self.log_info(lambda: f"Loaded backup config from {backup_path}")
+            else:
+                self.log_warn(lambda: f"No backup config found at {backup_path}")
 
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
@@ -582,6 +605,27 @@ class Recorder(Node):
             )
 
             state.current_size = state.writer.size
+
+    def save_backup_yml(self):
+        """Save current pipeline configuration to backup YAML file in config directory."""
+        import os
+
+        backup_data = {
+            "storage": self.storage_config.model_dump() if self.storage_config else {},
+            "pipelines": {
+                name: cfg.model_dump() for name, cfg in self.pipeline_configs.items()
+            },
+        }
+        if self.remote_config is not None:
+            backup_data["remote_config"] = self.remote_config.model_dump()
+
+        config_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "config"
+        )
+        backup_path = os.path.join(config_dir, "config_backup.yml")
+        os.makedirs(config_dir, exist_ok=True)
+        with open(backup_path, "w") as f:
+            yaml.dump(backup_data, f)
 
     #
     # Timer Callbacks
