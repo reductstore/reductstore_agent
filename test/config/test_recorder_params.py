@@ -64,6 +64,17 @@ def pipeline_params():
     ]
 
 
+def remote_params():
+    """Return a dictionary of valid remote configuration parameters."""
+    return [
+        Parameter("remote.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("remote.api_token", Parameter.Type.STRING, "access_token"),
+        Parameter("remote.bucket", Parameter.Type.STRING, "config_bucket"),
+        Parameter("remote.entry", Parameter.Type.STRING, "configuration"),
+        Parameter("remote.pull_frequency_s", Parameter.Type.INTEGER, 60),
+    ]
+
+
 def downsampling_params_stride():
     """Return a list of valid downsampling parameters for 'stride'."""
     return [
@@ -210,6 +221,7 @@ def pipeline_dynamic_params():
 def as_overrides(
     storage_dict,
     pipeline_params=None,
+    remote_params=None,
     downsampling_params=None,
     output_format_params=None,
     label_params=None,
@@ -226,6 +238,9 @@ def as_overrides(
         )
     if pipeline_params:
         for param in pipeline_params:
+            overrides.append(param)
+    if remote_params:  # only for testing environment
+        for param in remote_params:
             overrides.append(param)
     if downsampling_params:
         for param in downsampling_params:
@@ -634,3 +649,50 @@ def test_label_topic_config_invalid_cases(payload, err_msg):
     """Test if invalid LabelTopicConfig file raises an error."""
     with pytest.raises(ValueError, match=rf"{err_msg}"):
         LabelTopicConfig(**payload)
+
+
+def test_recorder_valid_remote_config_params():
+    """Test that valid remote config parameters are accepted."""
+    storage_dict = storage_params()
+    remote_cfg = remote_params()
+    rec = Recorder(
+        parameter_overrides=as_overrides(storage_dict, remote_params=remote_cfg)
+    )
+    assert rec.get_name() == "recorder"
+    rec.destroy_node()
+
+
+def test_recorder_invalid_remote_config_params():
+    """Test that invalid remote config parameters raise errors."""
+    storage_dict = storage_params()
+    invalid_remote_cfg = [
+        Parameter("remote.url", Parameter.Type.STRING, ""),
+        Parameter("remote.api_token", Parameter.Type.STRING, "access_token"),
+        Parameter("remote.bucket", Parameter.Type.STRING, "config_bucket"),
+        Parameter("remote.entry", Parameter.Type.STRING, "configuration"),
+        Parameter("remote.pull_frequency_s", Parameter.Type.INTEGER, 60),
+    ]
+    with pytest.raises(ValueError, match="'url' must not be empty"):
+        Recorder(
+            parameter_overrides=as_overrides(
+                storage_dict, remote_params=invalid_remote_cfg
+            )
+        )
+
+
+def test_recorder_both_remote_and_pipeline_params():
+    """Test that providing both remote and pipeline params raises an error."""
+    storage_dict = storage_params()
+    remote_cfg = remote_params()
+    pipeline_cfg = pipeline_params()
+    with pytest.raises(
+        ValueError,
+        match="Cannot have both remote configuration and local pipeline configuration.",
+    ):
+        Recorder(
+            parameter_overrides=as_overrides(
+                storage_dict,
+                pipeline_params=pipeline_cfg,
+                remote_params=remote_cfg,
+            )
+        )

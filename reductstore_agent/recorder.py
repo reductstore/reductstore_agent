@@ -26,6 +26,7 @@ from collections import defaultdict
 from typing import Any
 
 import rclpy
+import yaml
 from rclpy.impl.logging_severity import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
@@ -34,7 +35,7 @@ from rclpy.time import Time
 from reduct import BucketSettings, Client
 
 from .downsampler import Downsampler
-from .models import OutputFormat, PipelineConfig, StorageConfig
+from .models import OutputFormat, PipelineConfig, RemoteConfig, StorageConfig
 from .state import PipelineState
 from .utils import get_or_create_event_loop
 from .writer import create_writer
@@ -53,23 +54,37 @@ class Recorder(Node):
         )
         self.logger = self.get_logger()
         self.warned_topics: set[str] = set()
+        self.loop = get_or_create_event_loop()
 
         # Parameters
         self.storage_config = self.load_storage_config()
         self.pipeline_configs = self.load_pipeline_config()
+        self.remote_config = self.load_remote_config()
+
+        if self.remote_config and self.pipeline_configs:
+            raise ValueError(
+                "Cannot have both remote configuration "
+                "and local pipeline configuration."
+            )
 
         # ReductStore
         self.client = Client(
             self.storage_config.url, api_token=self.storage_config.api_token
         )
         self.bucket = None
-        self.loop = get_or_create_event_loop()
         self.loop.run_until_complete(self.init_reduct_bucket())
+        if self.remote_config:
+            self.log_info(lambda: "Configuration management enabled.")
+            self.loop.run_until_complete(self.check_remote_updates())
+        else:
+            self.log_info(lambda: "Loading backup configuration.")
+            self.load_backup_configuration()
 
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
         self.subscribers: list[Subscription] = []
-        self.init_pipeline_writers()
+        for name, cfg in self.pipeline_configs.items():
+            self.init_pipeline_writer(name, cfg)
 
         # Delay topic subscriptions
         delay = self.load_delay_config()
@@ -84,6 +99,11 @@ class Recorder(Node):
             self.destroy_timer(timer)
 
         timer = self.create_timer(delay, _delayed_setup)
+        if self.remote_config:
+            self.pull_timer = self.create_timer(
+                self.remote_config.pull_frequency_s,
+                lambda: self.loop.create_task(self.check_remote_updates()),
+            )
 
     def log_info(self, msg_fn):
         """Log an info message if enabled."""
@@ -124,6 +144,27 @@ class Recorder(Node):
                 params[key] = self.get_parameter(param).value
 
         return StorageConfig(**params)
+
+    def load_remote_config(self):
+        """Parse and validate configuration params."""
+        required_keys = ["url", "api_token", "bucket", "entry"]
+        optional_keys = ["pull_frequency_s"]
+
+        params = {}
+
+        for key in required_keys:
+            param = f"remote.{key}"
+            if not self.has_parameter(param):
+                self.logger.info("No remote configuration parameters found.")
+                return None
+            params[key] = self.get_parameter(param).value
+
+        for key in optional_keys:
+            param = f"remote.{key}"
+            if self.has_parameter(param):
+                params[key] = self.get_parameter(param).value
+
+        return RemoteConfig(**params)
 
     def load_pipeline_config(self) -> dict[str, PipelineConfig]:
         """Parse and validate pipeline parameters."""
@@ -209,7 +250,7 @@ class Recorder(Node):
     #
     # Pipeline Writers Initialization
     #
-    def init_pipeline_writers(self):
+    def init_pipeline_writer(self, pipeline_name: str, cfg: PipelineConfig):
         """
         Create an MCAP/CDR writer for each pipeline.
 
@@ -219,37 +260,38 @@ class Recorder(Node):
         topic_types = dict(self.get_topic_names_and_types())
         all_topics = set(topic_types)
 
-        for pipeline_name, cfg in self.pipeline_configs.items():
-            duration = cfg.split_max_duration_s
-            topics = self.resolve_topics(cfg, all_topics)
-            if not topics and cfg.include_topics:
-                topics = set(cfg.include_topics)
+        duration = cfg.split_max_duration_s
+        topics = self.resolve_topics(cfg, all_topics)
+        if not topics and cfg.include_topics:
+            topics = set(cfg.include_topics)
 
-            writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
-            state = PipelineState(
-                topics=topics,
-                writer=writer,
-                downsampler=Downsampler(cfg),
+        writer = create_writer(cfg, self.bucket, pipeline_name, self.logger)
+        state = PipelineState(
+            topics=topics,
+            writer=writer,
+            downsampler=Downsampler(cfg),
+        )
+
+        if cfg.output_format == OutputFormat.MCAP:
+            timer = self.create_timer(
+                float(duration),
+                self.make_timer_callback(pipeline_name, state),
+                autostart=False,
             )
+            state.timer = timer
+            # Add shutdown callback for flushing
+            self.context.on_shutdown(writer.flush_on_shutdown)
+        else:
+            # Add shutdown callback for flushing
+            state.timer = None
+            self.context.on_shutdown(writer.flush_on_shutdown)
 
-            if cfg.output_format == OutputFormat.MCAP:
-                timer = self.create_timer(
-                    float(duration),
-                    self.make_timer_callback(pipeline_name, state),
-                    autostart=False,
-                )
-                state.timer = timer
-            else:
-                # Add shutdown callback for flushing
-                state.timer = None
-                self.context.on_shutdown(writer.flush_on_shutdown)
+        self.pipeline_states[pipeline_name] = state
 
-            self.pipeline_states[pipeline_name] = state
-
-            self.log_info(
-                lambda: f"[{pipeline_name}] Pipeline writer "
-                f"initialized with config:\n{cfg.format_for_log()}"
-            )
+        self.log_info(
+            lambda: f"[{pipeline_name}] Pipeline writer "
+            f"initialized with config:\n{cfg.format_for_log()}"
+        )
 
     def start_pipeline_timers(self):
         """Start all pipeline timers after topic subscriptions are set up."""
@@ -275,6 +317,9 @@ class Recorder(Node):
         state.is_uploading = False
         if state.timer:
             state.timer.reset()
+        else:
+            # Add shutdown callback for flushing (CDR Output)
+            self.context.on_shutdown(state.writer.flush_on_shutdown)
 
         # Clear topics and schemas
         state.schema_by_type.clear()
@@ -291,6 +336,54 @@ class Recorder(Node):
         self.log_debug(
             lambda: f"[{pipeline_name}] Pipeline writer reset - ready for next segment"
         )
+
+    def remove_pipeline(self, pipeline_name: str):
+        """Remove pipeline state and stop its timer."""
+        state = self.pipeline_states.get(pipeline_name)
+        if not state:
+            return
+
+        if state.timer:
+            self.destroy_timer(state.timer)
+
+        del self.pipeline_states[pipeline_name]
+        self.log_info(lambda: f"[{pipeline_name}] Pipeline removed.")
+
+    def check_diff_pipelines(self, new_configs: dict[str, PipelineConfig]):
+        """Check for added, removed, or modified pipelines."""
+        current_pipelines = set(self.pipeline_configs.keys())
+        new_pipelines = set(new_configs.keys())
+
+        # Removed pipelines
+        for pipeline_name in current_pipelines - new_pipelines:
+            self.log_info(lambda: f"[{pipeline_name}] Pipeline flushed and removed.")
+            self.loop.run_until_complete(
+                self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
+            )
+            self.remove_pipeline(pipeline_name)
+
+        # Added pipelines
+        for pipeline_name in new_pipelines - current_pipelines:
+            cfg = new_configs[pipeline_name]
+            self.pipeline_configs[pipeline_name] = cfg
+            self.init_pipeline_writer(pipeline_name, cfg)
+        # Ensure new pipeline topics are subscribed
+        if new_pipelines - current_pipelines:
+            self.setup_topic_subscriptions()
+
+        # Modified pipelines
+        for pipeline_name in current_pipelines & new_pipelines:
+            if self.pipeline_configs[pipeline_name] != new_configs[pipeline_name]:
+                self.log_info(
+                    lambda: f"[{pipeline_name}] Pipeline configuration changed. "
+                    "Flushing and Resetting pipeline."
+                )
+                self.loop.run_until_complete(
+                    self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
+                )
+                self.pipeline_configs[pipeline_name] = new_configs[pipeline_name]
+                state = self.pipeline_states[pipeline_name]
+                self.reset_pipeline_state(pipeline_name, state)
 
     #
     # Topic Subscription
@@ -403,6 +496,108 @@ class Recorder(Node):
             self.warned_topics.add(topic_name)
 
         return self.get_clock().now().nanoseconds
+
+    #
+    # Remote Configuration
+    #
+    async def read_remote_bucket(self) -> str:
+        """Read configuration bucket from ReductStore."""
+        remote_bucket = await self.client.get_bucket(self.remote_config.bucket)
+        entry_name = self.remote_config.entry
+        entry = await remote_bucket.get_entry(entry_name)
+        async with entry.read() as record:
+            data = await record.read_all()
+            yaml_str = data.decode("utf-8")
+        return yaml_str
+
+    async def check_remote_updates(self):
+        """Periodically check for configuration updates."""
+        try:
+            yaml_str = await self.read_remote_bucket()
+            self.reload_pipeline_configuration(yaml_str)
+        except Exception as exc:
+            self.log_warn(lambda exc=exc: f"Failed to fetch configuration: {exc}")
+
+    def reload_pipeline_configuration(self, yaml_str: str):
+        """Reload pipeline configuration."""
+        new_config = self.validate_config(yaml_str)
+        if new_config is None:
+            self.log_warn(
+                lambda: "Failed to validate new configuration. "
+                "Keeping existing configuration."
+            )
+        elif new_config.pipeline_configs == self.pipeline_configs:
+            self.log_info(lambda: "No changes in pipeline configuration.")
+        else:
+            self.check_diff_pipelines(new_config.pipeline_configs)
+            self.pipeline_configs = new_config.pipeline_configs
+            self.save_backup_yml()
+            self.log_info(lambda: "Pipeline configuration updated and backup saved.")
+
+    def validate_config(self, yaml_str: str):
+        """Validate fetched config, if not valid use past valid config."""
+        try:
+            loaded_data = yaml.safe_load(yaml_str)
+            pipeline_cfgs = {
+                name: PipelineConfig(**cfg)
+                for name, cfg in loaded_data.get("pipelines", {}).items()
+            }
+            self.log_info(lambda: "Pipeline Configuration validated.")
+            return RemoteConfig(pipeline_configs=pipeline_cfgs)
+        except Exception as exc:
+            self.log_warn(
+                lambda exc=exc: f"Configuration validation failed: {exc}. "
+                "Using previous valid configuration."
+            )
+            return None
+
+    def save_backup_yml(self):
+        """Save current configuration to backup YAML file in config directory."""
+        import os
+
+        backup_data = {
+            "storage": self.storage_config.model_dump() if self.storage_config else {},
+            "pipelines": {
+                name: cfg.model_dump() for name, cfg in self.pipeline_configs.items()
+            },
+        }
+        if self.remote_config is not None:
+            backup_data["remote_config"] = self.remote_config.model_dump()
+
+        config_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "config"
+        )
+        backup_path = os.path.join(config_dir, "config_backup.yml")
+        os.makedirs(config_dir, exist_ok=True)
+        with open(backup_path, "w") as f:
+            yaml.dump(backup_data, f)
+
+    def load_backup_configuration(self):
+        """Load backup configuration from config/config_backup.yml if it exists."""
+        # Read backup config from config/config_backup.yml
+        import os
+
+        backup_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "config",
+            "config_backup.yml",
+        )
+        if os.path.exists(backup_path):
+            with open(backup_path, "r") as f:
+                backup_data = yaml.safe_load(f)
+            if "storage" in backup_data:
+                self.storage_config = StorageConfig(**backup_data["storage"])
+            if "pipelines" in backup_data:
+                self.pipeline_configs = {
+                    name: PipelineConfig(**cfg)
+                    for name, cfg in backup_data["pipelines"].items()
+                }
+            if "remote_config" in backup_data:
+                self.remote_config = RemoteConfig(**backup_data["remote_config"])
+            self.log_info(lambda: f"Loaded backup config from {backup_path}")
+        else:
+            self.log_warn(lambda: f"No backup config found at {backup_path}")
 
     #
     # Message Processing
