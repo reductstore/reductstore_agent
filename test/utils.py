@@ -23,6 +23,8 @@ import rclpy
 from rclpy.publisher import Publisher
 from std_msgs.msg import Float32, Int32, String
 
+from reductstore_agent.models import PipelineConfig
+
 
 async def fetch_and_count_records(
     client,
@@ -139,3 +141,14 @@ def publish_and_spin_messages_multi(
             rclpy.spin_once(recorder, timeout_sec=0.1)
 
     rclpy.spin_once(recorder, timeout_sec=2.0)
+
+
+def make_pipeline_config(name: str) -> PipelineConfig:
+    """Create a PipelineConfig with specified parameters for testing."""
+    return PipelineConfig(
+        **{
+            "split.max_duration_s": 1,
+            "include_topics": [f"/{name}"],
+            "filename_mode": "timestamp",
+        }
+    )

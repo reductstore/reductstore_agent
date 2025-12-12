@@ -476,3 +476,39 @@ def dynamic_pipeline_config() -> PipelineConfig:
             ),
         ],
     )
+
+
+@pytest.fixture
+def recorder_with_pipelines():
+    """Init a recorder with multiple pipelines for testing."""
+    params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
+        Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+        # Pipeline 1
+        Parameter(
+            "pipelines.pipeline_one.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/topic/one"],
+        ),
+        Parameter(
+            "pipelines.pipeline_one.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+        # Pipeline 2
+        Parameter(
+            "pipelines.pipeline_two.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/topic/two"],
+        ),
+        Parameter(
+            "pipelines.pipeline_two.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+    ]
+    rec = Recorder(parameter_overrides=params)
+    yield rec
+    rec.destroy_node()
