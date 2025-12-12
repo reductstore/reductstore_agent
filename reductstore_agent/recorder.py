@@ -61,6 +61,12 @@ class Recorder(Node):
         self.pipeline_configs = self.load_pipeline_config()
         self.remote_config = self.load_remote_config()
 
+        if self.remote_config and self.pipeline_configs:
+            raise ValueError(
+                "Cannot have both remote configuration "
+                "and local pipeline configuration."
+            )
+
         # ReductStore
         self.client = Client(
             self.storage_config.url, api_token=self.storage_config.api_token
@@ -71,30 +77,8 @@ class Recorder(Node):
             self.log_info(lambda: "Configuration management enabled.")
             self.loop.run_until_complete(self.check_remote_updates())
         else:
-            # Read backup config from config/config_backup.yml
-            import os
-
-            backup_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "..",
-                "config",
-                "config_backup.yml",
-            )
-            if os.path.exists(backup_path):
-                with open(backup_path, "r") as f:
-                    backup_data = yaml.safe_load(f)
-                if "storage" in backup_data:
-                    self.storage_config = StorageConfig(**backup_data["storage"])
-                if "pipelines" in backup_data:
-                    self.pipeline_configs = {
-                        name: PipelineConfig(**cfg)
-                        for name, cfg in backup_data["pipelines"].items()
-                    }
-                if "remote_config" in backup_data:
-                    self.remote_config = RemoteConfig(**backup_data["remote_config"])
-                self.log_info(lambda: f"Loaded backup config from {backup_path}")
-            else:
-                self.log_warn(lambda: f"No backup config found at {backup_path}")
+            self.log_info(lambda: "Loading backup configuration.")
+            self.load_backup_configuration()
 
         # Pipelines
         self.pipeline_states: dict[str, PipelineState] = {}
@@ -169,14 +153,14 @@ class Recorder(Node):
         params = {}
 
         for key in required_keys:
-            param = f"configuration.{key}"
+            param = f"remote.{key}"
             if not self.has_parameter(param):
                 self.logger.info("No remote configuration parameters found.")
                 return None
             params[key] = self.get_parameter(param).value
 
         for key in optional_keys:
-            param = f"configuration.{key}"
+            param = f"remote.{key}"
             if self.has_parameter(param):
                 params[key] = self.get_parameter(param).value
 
@@ -532,7 +516,7 @@ class Recorder(Node):
             yaml_str = await self.read_remote_bucket()
             self.reload_pipeline_configuration(yaml_str)
         except Exception as exc:
-            self.log_warn(f"Failed to fetch configuration: {exc}")
+            self.log_warn(lambda exc=exc: f"Failed to fetch configuration: {exc}")
 
     def reload_pipeline_configuration(self, yaml_str: str):
         """Reload pipeline configuration."""
@@ -547,7 +531,8 @@ class Recorder(Node):
         else:
             self.check_diff_pipelines(new_config.pipeline_configs)
             self.pipeline_configs = new_config.pipeline_configs
-            self.log_info(lambda: "Pipeline configuration updated.")
+            self.save_backup_yml()
+            self.log_info(lambda: "Pipeline configuration updated and backup saved.")
 
     def validate_config(self, yaml_str: str):
         """Validate fetched config, if not valid use past valid config."""
@@ -561,10 +546,58 @@ class Recorder(Node):
             return RemoteConfig(pipeline_configs=pipeline_cfgs)
         except Exception as exc:
             self.log_warn(
-                f"Configuration validation failed: {exc}. "
+                lambda exc=exc: f"Configuration validation failed: {exc}. "
                 "Using previous valid configuration."
             )
             return None
+
+    def save_backup_yml(self):
+        """Save current configuration to backup YAML file in config directory."""
+        import os
+
+        backup_data = {
+            "storage": self.storage_config.model_dump() if self.storage_config else {},
+            "pipelines": {
+                name: cfg.model_dump() for name, cfg in self.pipeline_configs.items()
+            },
+        }
+        if self.remote_config is not None:
+            backup_data["remote_config"] = self.remote_config.model_dump()
+
+        config_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "config"
+        )
+        backup_path = os.path.join(config_dir, "config_backup.yml")
+        os.makedirs(config_dir, exist_ok=True)
+        with open(backup_path, "w") as f:
+            yaml.dump(backup_data, f)
+
+    def load_backup_configuration(self):
+        """Load backup configuration from config/config_backup.yml if it exists."""
+        # Read backup config from config/config_backup.yml
+        import os
+
+        backup_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "config",
+            "config_backup.yml",
+        )
+        if os.path.exists(backup_path):
+            with open(backup_path, "r") as f:
+                backup_data = yaml.safe_load(f)
+            if "storage" in backup_data:
+                self.storage_config = StorageConfig(**backup_data["storage"])
+            if "pipelines" in backup_data:
+                self.pipeline_configs = {
+                    name: PipelineConfig(**cfg)
+                    for name, cfg in backup_data["pipelines"].items()
+                }
+            if "remote_config" in backup_data:
+                self.remote_config = RemoteConfig(**backup_data["remote_config"])
+            self.log_info(lambda: f"Loaded backup config from {backup_path}")
+        else:
+            self.log_warn(lambda: f"No backup config found at {backup_path}")
 
     #
     # Message Processing
@@ -605,27 +638,6 @@ class Recorder(Node):
             )
 
             state.current_size = state.writer.size
-
-    def save_backup_yml(self):
-        """Save current pipeline configuration to backup YAML file in config directory."""
-        import os
-
-        backup_data = {
-            "storage": self.storage_config.model_dump() if self.storage_config else {},
-            "pipelines": {
-                name: cfg.model_dump() for name, cfg in self.pipeline_configs.items()
-            },
-        }
-        if self.remote_config is not None:
-            backup_data["remote_config"] = self.remote_config.model_dump()
-
-        config_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "config"
-        )
-        backup_path = os.path.join(config_dir, "config_backup.yml")
-        os.makedirs(config_dir, exist_ok=True)
-        with open(backup_path, "w") as f:
-            yaml.dump(backup_data, f)
 
     #
     # Timer Callbacks
