@@ -75,7 +75,7 @@ class RemoteConfig(BaseModel):
     api_token: str
     bucket: str
     entry: str
-    pull_frequency_s: int = Field(60, ge=60, le=86400)
+    pull_frequency_s: int = Field(60, ge=5, le=86400)
 
     @field_validator("url", "bucket", "entry", "api_token")
     @classmethod

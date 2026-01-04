@@ -30,7 +30,11 @@ from rclpy.publisher import Publisher
 from reduct import Client
 from std_msgs.msg import Float32, Int32, String
 
-from reductstore_agent.models import LabelMode, LabelTopicConfig, PipelineConfig
+from reductstore_agent.models import (
+    LabelMode,
+    LabelTopicConfig,
+    PipelineConfig,
+)
 from reductstore_agent.recorder import Recorder
 from reductstore_agent.utils import get_or_create_event_loop
 
@@ -143,6 +147,21 @@ def quota_recorder() -> Generator[Recorder, None, None]:
             "storage.max_block_records",
             Parameter.Type.INTEGER,
             2048,
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.include_topics",
+            Parameter.Type.STRING_ARRAY,
+            ["/test/topic"],
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.split.max_duration_s",
+            Parameter.Type.INTEGER,
+            1,
+        ),
+        Parameter(
+            "pipelines.timer_test_topic.filename_mode",
+            Parameter.Type.STRING,
+            "incremental",
         ),
     ]
     rec = Recorder(parameter_overrides=params)
@@ -512,3 +531,39 @@ def recorder_with_pipelines():
     rec = Recorder(parameter_overrides=params)
     yield rec
     rec.destroy_node()
+
+
+@pytest.fixture
+def recorder_with_remote_config():
+    """Init a recorder with remote config for testing."""
+    params = [
+        Parameter("subscription_delay_s", Parameter.Type.DOUBLE, 0.0),
+        Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+        Parameter(
+            "remote_config.entry",
+            Parameter.Type.STRING,
+            "config/recorder.yaml",
+        ),
+        Parameter(
+            "remote_config.pull_frequency_s",
+            Parameter.Type.INTEGER,
+            10,
+        ),
+    ]
+    rec = Recorder(parameter_overrides=params)
+    yield rec
+    rec.destroy_node()
+
+
+@pytest.fixture
+def remote_publishers(publisher_node):
+    """Create publishers for /topic/one and /topic/two only (for test pipelines)."""
+    topics = ["/topic/one", "/topic/two"]
+    publishers = {}
+    for topic in topics:
+        publishers[topic] = publisher_node.create_publisher(
+            String, topic=topic, qos_profile=10
+        )
+    return publishers

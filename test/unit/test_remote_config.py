@@ -21,7 +21,7 @@
 """Unit tests for Remote Configuration."""
 
 from reductstore_agent.models import PipelineConfig
-
+from reductstore_agent.utils import get_or_create_event_loop
 from ..utils import make_pipeline_config
 
 
@@ -29,8 +29,8 @@ def test_check_diff_pipelines_remove(recorder_with_pipelines):
     """Test removing a pipeline configuration."""
     rec = recorder_with_pipelines
     new_configs = {"pipeline_one": rec.pipeline_configs["pipeline_one"]}
-    rec.check_diff_pipelines(new_configs)
-
+    loop = get_or_create_event_loop()
+    loop.run_until_complete(rec.check_diff_pipelines(new_configs))
     assert "pipeline_two" not in rec.pipeline_states
     assert "pipeline_one" in rec.pipeline_states
 
@@ -44,8 +44,8 @@ def test_check_diff_pipelines_add(recorder_with_pipelines):
         "pipeline_two": rec.pipeline_configs["pipeline_two"],
         "pipeline_three": make_pipeline_config("pipeline_three"),
     }
-    rec.check_diff_pipelines(new_configs)
-
+    loop = get_or_create_event_loop()
+    loop.run_until_complete(rec.check_diff_pipelines(new_configs))
     assert "pipeline_one" in rec.pipeline_states
     assert "pipeline_two" in rec.pipeline_states
     assert "pipeline_three" in rec.pipeline_states
@@ -67,7 +67,8 @@ def test_check_diff_pipelines_modify(recorder_with_pipelines):
     }
     assert rec.pipeline_configs["pipeline_two"].split_max_duration_s == 1
     assert rec.pipeline_configs["pipeline_two"].include_topics == ["/topic/two"]
-    rec.check_diff_pipelines(new_configs)
+    loop = get_or_create_event_loop()
+    loop.run_until_complete(rec.check_diff_pipelines(new_configs))
     assert rec.pipeline_configs["pipeline_two"].split_max_duration_s == 10
     assert rec.pipeline_configs["pipeline_two"].include_topics == [
         "/pipeline_two/topic/data"

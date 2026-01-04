@@ -61,11 +61,17 @@ class Recorder(Node):
         self.pipeline_configs = self.load_pipeline_config()
         self.remote_config = self.load_remote_config()
 
+        # Pipeline States
+        self.pipeline_states: dict[str, PipelineState] = {}
+        self.subscribers: list[Subscription] = []
+
         if self.remote_config and self.pipeline_configs:
             raise ValueError(
                 "Cannot have both remote configuration "
                 "and local pipeline configuration."
             )
+        if not self.pipeline_configs and not self.remote_config:
+            raise ValueError("No configuration found.")
 
         # ReductStore
         self.client = Client(
@@ -75,16 +81,20 @@ class Recorder(Node):
         self.loop.run_until_complete(self.init_reduct_bucket())
         if self.remote_config:
             self.log_info(lambda: "Configuration management enabled.")
-            self.loop.run_until_complete(self.check_remote_updates())
-        else:
-            self.log_info(lambda: "Loading backup configuration.")
-            self.load_backup_configuration()
+            try:
+                self.loop.run_until_complete(self.check_remote_updates())
+            except Exception as exc:
+                self.log_warn(
+                    lambda exc=exc: "Failed to check remote updates: "
+                    f"{exc}, loading backup."
+                )
+                self.load_backup_configuration()
 
-        # Pipelines
-        self.pipeline_states: dict[str, PipelineState] = {}
-        self.subscribers: list[Subscription] = []
-        for name, cfg in self.pipeline_configs.items():
-            self.init_pipeline_writer(name, cfg)
+        # Pipeline
+        if not self.remote_config:
+            self.log_info(lambda: "Using local pipeline configuration.")
+            for name, cfg in self.pipeline_configs.items():
+                self.init_pipeline_writer(name, cfg)
 
         # Delay topic subscriptions
         delay = self.load_delay_config()
@@ -100,9 +110,13 @@ class Recorder(Node):
 
         timer = self.create_timer(delay, _delayed_setup)
         if self.remote_config:
-            self.pull_timer = self.create_timer(
-                self.remote_config.pull_frequency_s,
-                lambda: self.loop.create_task(self.check_remote_updates()),
+            def pull_timer():
+                self.log_info(lambda: "Remote config pull timer fired.")
+                self.loop.create_task(self.check_remote_updates())
+            self._remote_config_timer = self.create_timer(
+                timer_period_sec=self.remote_config.pull_frequency_s,
+                callback=pull_timer,
+                autostart=True,
             )
 
     def log_info(self, msg_fn):
@@ -289,7 +303,7 @@ class Recorder(Node):
         self.pipeline_states[pipeline_name] = state
 
         self.log_info(
-            lambda: f"[{pipeline_name}] Pipeline writer "
+            lambda: f"Pipeline {pipeline_name} writer "
             f"initialized with config:\n{cfg.format_for_log()}"
         )
 
@@ -349,7 +363,7 @@ class Recorder(Node):
         del self.pipeline_states[pipeline_name]
         self.log_info(lambda: f"[{pipeline_name}] Pipeline removed.")
 
-    def check_diff_pipelines(self, new_configs: dict[str, PipelineConfig]):
+    async def check_diff_pipelines(self, new_configs: dict[str, PipelineConfig]):
         """Check for added, removed, or modified pipelines."""
         current_pipelines = set(self.pipeline_configs.keys())
         new_pipelines = set(new_configs.keys())
@@ -357,9 +371,7 @@ class Recorder(Node):
         # Removed pipelines
         for pipeline_name in current_pipelines - new_pipelines:
             self.log_info(lambda: f"[{pipeline_name}] Pipeline flushed and removed.")
-            self.loop.run_until_complete(
-                self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
-            )
+            await self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
             self.remove_pipeline(pipeline_name)
 
         # Added pipelines
@@ -378,9 +390,9 @@ class Recorder(Node):
                     lambda: f"[{pipeline_name}] Pipeline configuration changed. "
                     "Flushing and Resetting pipeline."
                 )
-                self.loop.run_until_complete(
-                    self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
-                )
+                await self.pipeline_states[
+                    pipeline_name
+                ].writer.flush_and_upload_batch()
                 self.pipeline_configs[pipeline_name] = new_configs[pipeline_name]
                 state = self.pipeline_states[pipeline_name]
                 self.reset_pipeline_state(pipeline_name, state)
@@ -465,7 +477,7 @@ class Recorder(Node):
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register schema once per message type and associate it with the topic."""
         for state in self.pipeline_states.values():
-            if topic_name not in state.topics or topic_name in state.schemas_by_topic:
+            if topic_name not in state.topics:
                 continue
 
             # Let the writer handle schema registration internally
@@ -504,8 +516,7 @@ class Recorder(Node):
         """Read configuration bucket from ReductStore."""
         remote_bucket = await self.client.get_bucket(self.remote_config.bucket)
         entry_name = self.remote_config.entry
-        entry = await remote_bucket.get_entry(entry_name)
-        async with entry.read() as record:
+        async with remote_bucket.read(entry_name) as record:
             data = await record.read_all()
             yaml_str = data.decode("utf-8")
         return yaml_str
@@ -514,11 +525,12 @@ class Recorder(Node):
         """Periodically check for configuration updates."""
         try:
             yaml_str = await self.read_remote_bucket()
-            self.reload_pipeline_configuration(yaml_str)
+            await self.reload_pipeline_configuration(yaml_str)
+            self.log_info(lambda: "Remote configuration fetched and applied.")
         except Exception as exc:
             self.log_warn(lambda exc=exc: f"Failed to fetch configuration: {exc}")
 
-    def reload_pipeline_configuration(self, yaml_str: str):
+    async def reload_pipeline_configuration(self, yaml_str: str):
         """Reload pipeline configuration."""
         new_config = self.validate_config(yaml_str)
         if new_config is None:
@@ -526,11 +538,11 @@ class Recorder(Node):
                 lambda: "Failed to validate new configuration. "
                 "Keeping existing configuration."
             )
-        elif new_config.pipeline_configs == self.pipeline_configs:
+        elif new_config == self.pipeline_configs:
             self.log_info(lambda: "No changes in pipeline configuration.")
         else:
-            self.check_diff_pipelines(new_config.pipeline_configs)
-            self.pipeline_configs = new_config.pipeline_configs
+            await self.check_diff_pipelines(new_config)
+            self.pipeline_configs = new_config
             self.save_backup_yml()
             self.log_info(lambda: "Pipeline configuration updated and backup saved.")
 
@@ -543,7 +555,7 @@ class Recorder(Node):
                 for name, cfg in loaded_data.get("pipelines", {}).items()
             }
             self.log_info(lambda: "Pipeline Configuration validated.")
-            return RemoteConfig(pipeline_configs=pipeline_cfgs)
+            return pipeline_cfgs
         except Exception as exc:
             self.log_warn(
                 lambda exc=exc: f"Configuration validation failed: {exc}. "

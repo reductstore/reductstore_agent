@@ -257,7 +257,9 @@ def as_overrides(
 
 def test_recorder_valid_storage_params():
     """Test that the Recorder node can be created with valid parameters."""
-    node = Recorder(parameter_overrides=as_overrides(storage_params()))
+    node = Recorder(
+        parameter_overrides=as_overrides(storage_params(), pipeline_params())
+    )
     assert node.get_name() == "recorder"
     node.destroy_node()
 
@@ -552,7 +554,7 @@ def test_recorder_valid_quota_and_block_params():
     storage_dict["quota_size"] = "1GB"
     storage_dict["max_block_size"] = "10MB"
     storage_dict["max_block_records"] = "1000"
-    node = Recorder(parameter_overrides=as_overrides(storage_dict))
+    node = Recorder(parameter_overrides=as_overrides(storage_dict)+pipeline_params())
     assert node.get_name() == "recorder"
     node.destroy_node()
 

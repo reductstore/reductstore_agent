@@ -20,6 +20,8 @@
 
 """Utilities for testing purposes."""
 import rclpy
+import yaml
+from rclpy.parameter import Parameter
 from rclpy.publisher import Publisher
 from std_msgs.msg import Float32, Int32, String
 
@@ -39,6 +41,21 @@ async def fetch_and_count_records(
     return output
 
 
+async def upload_remote_config(
+    client,
+    bucket_name: str,
+    entry_name: str,
+    config_yaml: str,
+):
+    """Upload remote configuration to reduct storage."""
+    bucket = await client.get_bucket(bucket_name)
+    await bucket.write(
+        entry_name,
+        config_yaml.encode("utf-8"),
+        content_type="text/yaml",
+    )
+
+
 def publish_and_spin_messages(
     publisher_node,
     publisher,
@@ -46,7 +63,6 @@ def publish_and_spin_messages(
     message: String,
     wait_for_subscription: bool = True,
     n_msg: int = 1,
-    frequency: float = None,
 ):
     """Publish messages and spin nodes to process it."""
     logger = publisher_node.get_logger()
@@ -134,7 +150,7 @@ def publish_and_spin_messages_multi(
                 msg.data = f"generic_msg_{i}"
 
             pub_object.publish(msg)
-            logger.info(f"Publishing cycle {i} on topic: {topic_name}")
+            logger.info(f"Publishing cycle {i+1} on topic: {topic_name}")
             # Allow processing time
             rclpy.spin_once(publisher_node, timeout_sec=0.1)
             rclpy.spin_once(recorder, timeout_sec=0.1)
@@ -152,3 +168,66 @@ def make_pipeline_config(name: str) -> PipelineConfig:
             "filename_mode": "timestamp",
         }
     )
+
+
+def get_test_pipelines_yaml_mcap() -> str:
+    """Return the two-pipeline parameter section as a YAML string (for test config)."""
+    pipelines = {
+        "pipelines": {
+            "pipeline_one": {
+                "include_topics": ["/topic/one"],
+                "split.max_duration_s": 1,
+                "output_format": "mcap",
+            },
+            "pipeline_two": {
+                "include_topics": ["/topic/two"],
+                "split.max_duration_s": 1,
+                "output_format": "mcap",
+            },
+        }
+    }
+    return yaml.dump(pipelines, sort_keys=False)
+
+
+def get_test_pipelines_yaml_cdr() -> str:
+    """Return the two-pipeline parameter section as a YAML string with CDR mode."""
+    pipelines = {
+        "pipelines": {
+            "pipeline_one": {
+                "include_topics": ["/topic/one"],
+                "split.max_duration_s": 1,
+                "output_format": "cdr",
+            },
+            "pipeline_two": {
+                "include_topics": ["/topic/two"],
+                "split.max_duration_s": 1,
+                "output_format": "cdr",
+            },
+        }
+    }
+    return yaml.dump(pipelines, sort_keys=False)
+
+
+async def create_remote_bucket(client, bucket_name: str):
+    """Create a remote bucket for testing."""
+    await client.create_bucket(bucket_name, exist_ok=True)
+
+
+async def remove_remote_bucket(client, bucket_name: str):
+    """Remove a remote bucket after testing."""
+    bucket = await client.get_bucket(bucket_name)
+    await bucket.remove()
+
+
+def remote_bucket_params(pull_frequcency_s: int = 60) -> list[tuple[str, str, object]]:
+    """Return Parameter list for remote bucket configuration."""
+    return [
+        Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("storage.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("storage.bucket", Parameter.Type.STRING, "test_bucket"),
+        Parameter("remote.url", Parameter.Type.STRING, "http://localhost:8383"),
+        Parameter("remote.api_token", Parameter.Type.STRING, "test_token"),
+        Parameter("remote.bucket", Parameter.Type.STRING, "remote_bucket"),
+        Parameter("remote.entry", Parameter.Type.STRING, "remote_config"),
+        Parameter("remote.pull_frequency_s", Parameter.Type.INTEGER, pull_frequcency_s),
+    ]
