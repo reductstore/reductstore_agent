@@ -110,9 +110,11 @@ class Recorder(Node):
 
         timer = self.create_timer(delay, _delayed_setup)
         if self.remote_config:
+
             def pull_timer():
                 self.log_info(lambda: "Remote config pull timer fired.")
                 self.loop.create_task(self.check_remote_updates())
+
             self._remote_config_timer = self.create_timer(
                 timer_period_sec=self.remote_config.pull_frequency_s,
                 callback=pull_timer,

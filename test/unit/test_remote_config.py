@@ -22,6 +22,7 @@
 
 from reductstore_agent.models import PipelineConfig
 from reductstore_agent.utils import get_or_create_event_loop
+
 from ..utils import make_pipeline_config
 
 
