@@ -377,8 +377,8 @@ class Recorder(Node):
         # Removed pipelines
         for pipeline_name in current_pipelines - new_pipelines:
             self.log_info(
-                lambda pipeline_name=pipeline_name:
-                f"[{pipeline_name}] Pipeline flushed and removed."
+                lambda pipeline_name=pipeline_name: f"[{pipeline_name}] "
+                "Pipeline flushed and removed."
             )
             await self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
             self.remove_pipeline(pipeline_name)
