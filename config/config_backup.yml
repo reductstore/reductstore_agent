@@ -2,18 +2,15 @@ pipelines:
   pipeline_one:
     chunk_size_bytes: 1000000
     compression: zstd
-    downsampling_mode: !!python/object/apply:reductstore_agent.models.DownsamplingMode
-    - none
+    downsampling_mode: NONE
     enable_crcs: true
     exclude_topics: []
-    filename_mode: !!python/object/apply:reductstore_agent.models.FilenameMode
-    - timestamp
+    filename_mode: TIMESTAMP
     include_topics:
     - /topic/one
     labels: []
     max_rate_hz: null
-    output_format: !!python/object/apply:reductstore_agent.models.OutputFormat
-    - cdr
+    output_format: CDR
     split_max_duration_s: 1
     split_max_size_bytes: null
     spool_max_size_bytes: 10000000
@@ -22,18 +19,15 @@ pipelines:
   pipeline_two:
     chunk_size_bytes: 1000000
     compression: zstd
-    downsampling_mode: !!python/object/apply:reductstore_agent.models.DownsamplingMode
-    - none
+    downsampling_mode: NONE
     enable_crcs: true
     exclude_topics: []
-    filename_mode: !!python/object/apply:reductstore_agent.models.FilenameMode
-    - timestamp
+    filename_mode: TIMESTAMP
     include_topics:
     - /topic/two
     labels: []
     max_rate_hz: null
-    output_format: !!python/object/apply:reductstore_agent.models.OutputFormat
-    - cdr
+    output_format: CDR
     split_max_duration_s: 1
     split_max_size_bytes: null
     spool_max_size_bytes: 10000000
@@ -51,6 +45,5 @@ storage:
   max_block_records: null
   max_block_size: null
   quota_size: null
-  quota_type: !!python/object/apply:reduct.msg.bucket.QuotaType
-  - NONE
+  quota_type: NONE
   url: http://localhost:8383

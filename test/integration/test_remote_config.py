@@ -97,6 +97,7 @@ def test_recorder_loads_remote_config_on_startup(
 
     assert len(records_pipeline_one) == 1, "Expected 1 record in pipeline_one."
     assert len(records_pipeline_two) == 1, "Expected 1 record in pipeline_two."
+    node.destroy_node()
 
 
 def test_recorder_loads_remote_config_cdr(
@@ -162,6 +163,7 @@ def test_recorder_loads_remote_config_cdr(
 
     assert len(records_pipeline_one) == 5, "Expected 5 records in pipeline_one."
     assert len(records_pipeline_two) == 5, "Expected 5 records in pipeline_two."
+    node.destroy_node()
 
 
 def test_recorder_remote_config_periodic_pull(
@@ -257,3 +259,4 @@ def test_recorder_remote_config_periodic_pull(
     )
     assert len(records_pipeline_one) == 6, "Expected 6 records in pipeline_one."
     assert len(records_pipeline_two) == 6, "Expected 6 records in pipeline_two."
+    node.destroy_node()

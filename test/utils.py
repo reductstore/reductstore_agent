@@ -219,7 +219,7 @@ async def remove_remote_bucket(client, bucket_name: str):
     await bucket.remove()
 
 
-def remote_bucket_params(pull_frequcency_s: int = 60) -> list[tuple[str, str, object]]:
+def remote_bucket_params(pull_frequency_s: int = 60) -> list[tuple[str, str, object]]:
     """Return Parameter list for remote bucket configuration."""
     return [
         Parameter("storage.url", Parameter.Type.STRING, "http://localhost:8383"),
@@ -229,5 +229,5 @@ def remote_bucket_params(pull_frequcency_s: int = 60) -> list[tuple[str, str, ob
         Parameter("remote.api_token", Parameter.Type.STRING, "test_token"),
         Parameter("remote.bucket", Parameter.Type.STRING, "remote_bucket"),
         Parameter("remote.entry", Parameter.Type.STRING, "remote_config"),
-        Parameter("remote.pull_frequency_s", Parameter.Type.INTEGER, pull_frequcency_s),
+        Parameter("remote.pull_frequency_s", Parameter.Type.INTEGER, pull_frequency_s),
     ]
