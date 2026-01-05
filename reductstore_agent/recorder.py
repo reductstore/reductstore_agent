@@ -175,7 +175,7 @@ class Recorder(Node):
         for key in required_keys:
             param = f"remote.{key}"
             if not self.has_parameter(param):
-                self.logger.info("No remote configuration parameters found.")
+                self.logger_info(lambda: "No remote configuration parameters found.")
                 return None
             params[key] = self.get_parameter(param).value
 
