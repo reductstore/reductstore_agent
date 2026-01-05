@@ -92,7 +92,7 @@ class Recorder(Node):
                 if self.pipeline_configs:
                     for name, cfg in self.pipeline_configs.items():
                         self.init_pipeline_writer(name, cfg)
-                        
+
         # Pipeline
         if not self.remote_config:
             self.log_info(lambda: "Using local pipeline configuration.")
@@ -114,9 +114,11 @@ class Recorder(Node):
         timer = self.create_timer(delay, _delayed_setup)
 
         if self.remote_config:
+
             def pull_timer():
                 self.log_info(lambda: "Remote config pull timer fired.")
                 self.loop.create_task(self.check_remote_updates())
+
             self._remote_config_timer = self.create_timer(
                 timer_period_sec=self.remote_config.pull_frequency_s,
                 callback=pull_timer,
@@ -374,8 +376,9 @@ class Recorder(Node):
 
         # Removed pipelines
         for pipeline_name in current_pipelines - new_pipelines:
-            self.log_info(lambda pipeline_name=pipeline_name:
-                          f"[{pipeline_name}] Pipeline flushed and removed.")
+            self.log_info(
+                lambda pipeline_name=pipeline_name: f"[{pipeline_name}] Pipeline flushed and removed."
+            )
             await self.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
             self.remove_pipeline(pipeline_name)
 
@@ -397,8 +400,9 @@ class Recorder(Node):
                 self.remove_pipeline(pipeline_name)
                 self.pipeline_configs[pipeline_name] = new_configs[pipeline_name]
                 self.init_pipeline_writer(pipeline_name, new_configs[pipeline_name])
-        
+
         self.setup_topic_subscriptions()
+
     #
     # Topic Subscription
     #
@@ -569,7 +573,7 @@ class Recorder(Node):
     def save_backup_yml(self):
         """Save current configuration to backup YAML file in config directory."""
         import os
-        
+
         def enum_to_str(obj):
             if hasattr(obj, "__class__") and hasattr(obj, "name"):
                 return str(obj.name)
@@ -586,7 +590,8 @@ class Recorder(Node):
         backup_data = {
             "storage": (
                 clean_dict(self.storage_config.model_dump())
-                if self.storage_config else {}
+                if self.storage_config
+                else {}
             ),
             "pipelines": {
                 name: clean_dict(cfg.model_dump())
@@ -605,9 +610,7 @@ class Recorder(Node):
             with open(backup_path, "w") as f:
                 yaml.safe_dump(backup_data, f, default_flow_style=False)
         except Exception as exc:
-            self.log_warn(
-                lambda exc=exc: f"Failed to save backup configuration: {exc}"
-            )
+            self.log_warn(lambda exc=exc: f"Failed to save backup configuration: {exc}")
 
     def load_backup_configuration(self):
         """Load backup configuration from config/config_backup.yml if it exists."""
