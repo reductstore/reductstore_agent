@@ -27,3 +27,5 @@ Changelog for package reductstore_agent
   Add integration test for downsampling
 * Merge pull request `#14 <https://github.com/reductstore/reductstore_agent/issues/14>`_ from reductstore/14-support-dynamic-labels
   Add dynamic labels feature
+* Merge pull request `#42 <https://github.com/reductstore/reductstore_agent/pull/42>`_ from reductstore/35-configuration-bucket-auto-sync
+  Add remote configuration auto-sync feature
