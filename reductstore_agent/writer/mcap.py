@@ -271,6 +271,11 @@ class McapOutputWriter(OutputWriter):
         """Check if a schema is registered for a topic."""
         return topic_name in self.schemas_by_topic
 
+    def flush_on_shutdown(self):
+        """Flush and upload MCAP on shutdown."""
+        loop = get_or_create_event_loop()
+        loop.run_until_complete(self.finish_and_upload())
+
     @property
     def size(self) -> int:
         """Get current buffer size."""

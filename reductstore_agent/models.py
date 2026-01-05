@@ -68,6 +68,24 @@ class StorageConfig(BaseModel):
         return parse_bytes_with_si_units(value)
 
 
+class RemoteConfig(BaseModel):
+    """Remote Configuration for remote configuration management and auto-sync."""
+
+    url: str
+    api_token: str
+    bucket: str
+    entry: str
+    pull_frequency_s: int = Field(60, ge=5, le=86400)
+
+    @field_validator("url", "bucket", "entry", "api_token")
+    @classmethod
+    def not_empty(cls, v, info):
+        """Ensure string fields are not empty."""
+        if not v.strip():
+            raise ValueError(f"'{info.field_name}' must not be empty")
+        return v
+
+
 class FilenameMode(str, Enum):
     """Filename mode for pipeline segments."""
 
