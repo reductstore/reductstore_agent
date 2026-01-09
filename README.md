@@ -21,54 +21,70 @@ This agent is tested with:
 * **Bandwidth constraints**: Filter and compress data before optionally replicating to a central server or the cloud.
 * **Manual workflows**: Replace manual drive swaps, custom scripts, and bag handling with automated data management.
 * **Lack of filtering**: Apply dynamic labels (e.g., mission ID) to tag, search, and retrieve specific data segments.
-* **Ubuntu Core**: Future Snap integration to support deployment as part of the [Ubuntu Core observability stack](https://ubuntu.com/blog/ubuntu-core-24-robotics-telemetry).
+* **Ubuntu Core**: Distributed as a Snap and suitable for deployment on Ubuntu Core–based robotic systems.
 
-## Structure
+## Documentation 
 
-The agent is configured using a YAML file. Each pipeline is an independent logging unit (only one type of pipeline is supported at the moment where all topics are recorded continuously without filtering).
+📘 **ROS 2 ReductStore Agent Documentation**  
+👉 https://www.reduct.store/docs/integrations/ros2-agent
 
-```yaml
-/**/*:
-  ros__parameters:
-    storage: # local ReductStore instance
-      url: "http://localhost:8383"
-      api_token: "access_token"
-      bucket: "ros_data"
-      quota_type: "FIFO"
-      quota_size: "200GB"
-    pipelines:
-      telemetry:
-        filename_mode: "timestamp"
-        include_topics:
-          - "/camera/.*"
-        exclude_topics:
-          - "/camera/ignore"
-        static_labels:
-          source: telemetry
-          robot: alpha
-        split:
-          max_duration_s: 3600
-          max_size_bytes: 10000
-        downsample:
-          downsampling_mode: stride
-          stride_n: 5
+📚 **ReductStore Platform Documentation**  
+👉 https://www.reduct.store/docs
+
+The website is the **single source of truth** for:
+- YAML configuration options
+- Pipeline behavior
+- Storage quotas
+- Compression & downsampling
+- MCAP / CDR formats
+- Performance tuning
+
+## Quickstart
+
+### 1. Start ReductStore instance
+```bash
+docker run -p 8383:8383 -v ${PWD}/data:/data reduct/store:latest
 ```
 
-See the [Configuration](#configuration) section for details on available parameters.
+### 2. Install the ROS2 agent (Snap)
+```bash
+sudo snap install reductstore-agent --edge
+```
 
-## Installing
+## 3. Run the recorder
+```bash
+ros2 run reductstore_agent recorder --ros-args --params-file ./config/params.yml
+```
 
-This package requires Python dependencies (`reduct-py`, `mcap`, `mcap-ros2-support`) that are **not provided by ROS 2**.
-To keep them isolated while still allowing `colcon` and `ros2` (installed system-wide) to work, we create a virtual environment with:
+> **Note**  
+> The recorder requires a parameters file to start. The Snap package and source
+> distribution both include a default configuration suitable for local testing.
+## Installation Options
+
+The agent can be installed in two ways:
+
+### Snap Package (Recommended)
+
+This snap provides the **ReductStore Agent ROS 2 node**, which records ROS 2 topics and streams them into ReductStore.
 
 ```bash
-python3 -m venv .venv --system-site-packages
+# Install snapcraft if not already installed
+sudo snap install snapcraft --classic
+
+# Build the snap
+snapcraft pack
+
+# Install locally (for testing)
+sudo snap install --dangerous reductstore-agent_*.snap
 ```
 
-The `--system-site-packages` flag is important because it lets the venv access ROS’s system-installed Python packages (`rclpy`, `rosbag2_py`, etc.).
-Without it, `colcon` and ROS Python APIs won’t be visible inside the venv, and `ros2 run` would fail to find your node.
+Or install directly from the store (edge channel for now):
 
-### Build and Run
+```bash
+sudo snap install reductstore-agent --edge
+```
+
+### Build from Source 
 
 ```bash
 # 1. Create a workspace and clone the repository
@@ -93,100 +109,6 @@ python -m colcon build --symlink-install
 # 6. Source the workspace and run the node
 source install/setup.bash
 ros2 run reductstore_agent recorder --ros-args --params-file ./config/params.yml
-```
-
-There is also a [Snap package](#snap-package) available for easier installation and updates.
-
-## Configuration
-
-The configuration file is a YAML file that defines the storage settings and pipelines. The `storage` section contains ReductStore connection details, and the `pipelines` section defines the individual pipelines for recording data.
-
-### Storage Configuration
-
-The `storage` section specifies the ReductStore instance to connect to:
-
- * **`url`**: The URL of the ReductStore instance (e.g., `http://localhost:8383`).
- * **`api_token`**: The API token for authentication. This is required to access the ReductStore instance.
- * **`bucket`**: The bucket name where the data will be stored.
-  * **`quota_type`**: The type of quota to apply. Options are:
-    * `"FIFO"`: First In, First Out (oldest data is removed first).
-    * `"HARD"`: Hard limit (data is not accepted when the quota is reached).
-    * `"NONE"`: No quota applied.
-  * **`quota_size`**: The size of the quota in bytes. This is required if `quota_type` is set to `"FIFO"` or `"HARD"`.
-  * **`max_block_size`**: Maximum size of each block in bytes.
-  * **`max_block_records`**: Maximum number of records per block.
-
-More information on how to setup ReductStore can be found in the [ReductStore Getting Started Guide](https://www.reduct.store/docs/getting-started).
-
-### Pipeline Parameters
-
-Each pipeline supports the following parameters:
-
-* **`split`**:
-
-  * **`max_duration_s`**: Maximum duration (in seconds) for each data segment. Must be between `1` and `3600`.
-  * **`max_size_bytes`** *(optional)*: Maximum size (in bytes) for each segment. Must be between `1KB` and `1GB`.
-
-* **`chunk_size_bytes`**: Size of each MCAP chunk in bytes. Defaults to `1MB`. Must be between `1KB` and `10MB`.
-
-* **`compression`**: Compression algorithm to use. One of:
-
-  * `"none"`
-  * `"lz4"`
-  * `"zstd"` *(default)*
-
-* **`enable_crcs`**: Whether to enable CRC checks. Defaults to `true`.
-
-* **`spool_max_size_bytes`**: Maximum in-memory spool size before flushing. Defaults to `10MB`. Must be between `1KB` and `1GB`.
-
-* **`include_topics`**: List of topics to include for recording. Supports regular expressions.
-* **`exclude_topics`** *(optional)*: List of topics to exclude from recording. Supports regular expressions.
-
-* **`static_labels`** *(optional)*: Fixed key-value labels to attach to each record.
-
-* **`filename_mode`**: Determines how filenames are generated. One of:
-
-  * `"timestamp"` *(default)* — Use first topic timestamp for filenames.
-  * `"incremental"` — Use incrementing numbers (0, 1, 2, ...) for filenames.
-
-* **`downsample_mode`**: Method discards messages. Choose one of:
-
-  * `"none"` *(default)* 
-  * `"stride"` — (with separate parameter stride_n for the stride value) Only records records every `stride_n` message. Must be >=2.
-  * `"max_rate"` — (with separate parameter max_rate_hz for the rate limit) Specifies maximum frequency of recorded messages.
-
-* **`output_format`**: Choose one of the output formats:
-
-  * `"mcap"` *(default)* — Send mcap files to ReductStore
-  * `"cdr"` — Send binary CDR to ReductStore
-
-* **`mode`**: Choose one of dynamic labels mode:
-
-  * `"last"` *(default)* - use the most recent message 
-  * `"first"` - use the first message in the current file
-  * `"max"` - use the maximum value across all messages in the file
-
-## Snap Package
-
-This snap provides the **ReductStore Agent ROS 2 node**, which records ROS 2 topics and streams them into ReductStore.
-
-### Build and Install
-
-```bash
-# Install snapcraft if not already installed
-sudo snap install snapcraft --classic
-
-# Build the snap
-snapcraft pack
-
-# Install locally (for testing)
-sudo snap install --dangerous reductstore-agent_*.snap
-```
-
-Or install directly from the store (edge channel for now):
-
-```bash
-sudo snap install reductstore-agent --edge
 ```
 
 ## Links
