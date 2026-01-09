@@ -39,77 +39,58 @@ The website is the **single source of truth** for:
 - MCAP / CDR formats
 - Performance tuning
 
-## Quickstart
+## Quickstart and Installation 
 
-### 1. Start ReductStore instance
-```bash
-docker run -p 8383:8383 -v ${PWD}/data:/data reduct/store:latest
-```
+### 1. Start a ReductStore Instance
 
-### 2. Install the ROS2 agent (Snap)
-```bash
-sudo snap install reductstore-agent --edge
-```
+The agent requires a running ReductStore instance.
 
-## 3. Run the recorder
-```bash
-ros2 run reductstore_agent recorder --ros-args --params-file ./config/params.yml
-```
-
-> **Note**  
-> The recorder requires a parameters file to start. The Snap package and source
-> distribution both include a default configuration suitable for local testing.
-## Installation Options
-
-The agent can be installed in two ways:
-
-### Snap Package (Recommended)
-
-This snap provides the **ReductStore Agent ROS 2 node**, which records ROS 2 topics and streams them into ReductStore.
+For local testing, you can start ReductStore using Docker:
 
 ```bash
-# Install snapcraft if not already installed
-sudo snap install snapcraft --classic
-
-# Build the snap
-snapcraft pack
-
-# Install locally (for testing)
-sudo snap install --dangerous reductstore-agent_*.snap
+docker run -p 8383:8383 reductstore/reductstore:latest
 ```
+### 2. Install the ROS 2 Agent
 
-Or install directly from the store (edge channel for now):
+Choose one of the following installation methods:
+
+#### a) Snap Package (Recommended)
 
 ```bash
 sudo snap install reductstore-agent --edge
 ```
 
-### Build from Source 
+#### b) Build from Source
 
 ```bash
-# 1. Create a workspace and clone the repository
+# Create workspace and clone repository
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
 git clone https://github.com/reductstore/reductstore_agent.git
 cd ..
 
-# 2. Install system dependencies
+# Install dependencies
 rosdep install --from-paths src --ignore-src -r -y
 
-# 3. Create and activate the virtual environment
+# Set up virtual environment
 python3 -m venv .venv --system-site-packages
 source .venv/bin/activate
 
-# 4. Install Python dependencies
+# Install Python dependencies
 pip install -U reduct-py mcap mcap-ros2-support
 
-# 5. Build the package with colcon using the venv Python
+# Build the package
 python -m colcon build --symlink-install
+```
 
-# 6. Source the workspace and run the node
-source install/setup.bash
+### 3. Run the Recorder
+
+```bash
+# For both Snap and source installs:
 ros2 run reductstore_agent recorder --ros-args --params-file ./config/params.yml
 ```
+
+> **Note:** The recorder requires a parameters file to start. Both the Snap and source distributions include a default configuration suitable for local testing.
 
 ## Links
 
