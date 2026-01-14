@@ -29,3 +29,5 @@ Changelog for package reductstore_agent
   Add dynamic labels feature
 * Merge pull request `#42 <https://github.com/reductstore/reductstore_agent/pull/42>`_ from reductstore/35-configuration-bucket-auto-sync
   Add remote configuration auto-sync feature
+* Merge pull request `#47 <https://github.com/reductstore/reductstore_agent/pull/47>`_ from reductstore/43-reorganize-documentation
+  Reorganize documentation
