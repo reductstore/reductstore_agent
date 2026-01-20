@@ -73,6 +73,16 @@ apps:
       RCUTILS_COLORIZED_OUTPUT: "1"
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
+  rosbag_replayer:
+    command: usr/bin/run_replayer.sh
+    extensions: [ros2-jazzy]
+    plugs: [network, network-bind]
+    environment:
+      ROS_DOMAIN_ID: "0"
+      ROS_AUTOMATIC_DISCOVERY_RANGE: "SUBNET"
+      RCUTILS_COLORIZED_OUTPUT: "1"
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
 
   config-help:
     command: usr/bin/config_help.sh
