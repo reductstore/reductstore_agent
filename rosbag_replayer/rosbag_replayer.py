@@ -20,6 +20,8 @@
 
 """ROS2 Node to produce data for reductstore from rosbag2 files."""
 
+import os
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
@@ -33,27 +35,19 @@ class RosbagReplayer(Node):
     def __init__(self) -> None:
         """Initialize the RosbagReplayer node."""
         super().__init__("rosbag_replayer")
-        self.bag_path = "demo_bags/test.mcap"
+        self.declare_parameter("bag_path", "demo_bags/demo.mcap")
+        self.bag_path = (
+            self.get_parameter("bag_path").get_parameter_value().string_value
+        )
+        if not os.path.exists(self.bag_path):
+            raise FileNotFoundError(f"Bag path does not exist: {self.bag_path}")
         self._open_reader()
         self.topic_types = {
             topic.name: topic.type for topic in self.reader.get_all_topics_and_types()
         }
         self._topic_publishers = {}
-        qos_profile = QoSProfile(depth=10)
-        try:
-            for topic_name, topic_type in self.topic_types.items():
-                pkg, _, msg_type = topic_type.partition("/msg/")
-                module = __import__(f"{pkg}.msg", fromlist=[msg_type])
-                msg_class = getattr(module, msg_type)
-                self.get_logger().info(
-                    f"Creating publisher for {topic_name} with type"
-                    f" {msg_class} and QoS {type(qos_profile)}"
-                )
-                publisher = self.create_publisher(msg_class, topic_name, qos_profile)
-                self._topic_publishers[topic_name] = publisher
-        except Exception as e:
-            self.get_logger().error(f"Failed to create publishers: {e}")
-            raise
+        self.qos_profile = QoSProfile(depth=10)
+        self._create_publishers()
 
     def _open_reader(self):
         """Open the rosbag2 reader."""
@@ -75,7 +69,13 @@ class RosbagReplayer(Node):
                 pkg, _, msg_type = topic_type.partition("/msg/")
                 module = __import__(f"{pkg}.msg", fromlist=[msg_type])
                 msg_class = getattr(module, msg_type)
-                msg = deserialize_message(data, msg_class)
+                try:
+                    msg = deserialize_message(data, msg_class)
+                except Exception as e:
+                    self.get_logger().error(
+                        f"Failed to deserialize message on topic {topic_name}: {e}"
+                    )
+                    continue
                 # Update timestamp if message has header
                 if hasattr(msg, "header") and hasattr(msg.header, "stamp"):
                     msg.header.stamp = self.get_clock().now().to_msg()
@@ -86,19 +86,42 @@ class RosbagReplayer(Node):
             self.get_logger().info("Reached end of bag, restarting...")
             self._open_reader()
 
+    def _create_publishers(self):
+        """Create publishers for each topic in the rosbag."""
+        try:
+            for topic_name, topic_type in self.topic_types.items():
+                pkg, _, msg_type = topic_type.partition("/msg/")
+                module = __import__(f"{pkg}.msg", fromlist=[msg_type])
+                msg_class = getattr(module, msg_type)
+                self.get_logger().info(
+                    f"Creating publisher for {topic_name} with type"
+                    f" {msg_class} and QoS {type(self.qos_profile)}"
+                )
+                publisher = self.create_publisher(
+                    msg_class, topic_name, self.qos_profile
+                )
+                self._topic_publishers[topic_name] = publisher
+        except Exception as e:
+            self.get_logger().error(f"Failed to create publishers: {e}")
+            raise e
+
 
 def main():
     """Start the rosbag replayer node."""
     rclpy.init()
-    node = RosbagReplayer()
+    node = None
     try:
+        node = RosbagReplayer()
         node.replay()
     except KeyboardInterrupt:
         pass
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
     finally:
-        if rclpy.ok():
+        if node is not None:
             node.get_logger().info("Destroying node and shutting down ROS...")
             node.destroy_node()
+        if rclpy.ok():
             rclpy.shutdown()
 
 
