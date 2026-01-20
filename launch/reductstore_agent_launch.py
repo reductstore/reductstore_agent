@@ -22,7 +22,6 @@
 
 """Launch file for the reductstore_agent node."""
 
-
 import os
 
 from ament_index_python import get_package_share_directory

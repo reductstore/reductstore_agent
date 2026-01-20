@@ -14,7 +14,6 @@
 
 """Test PEP257 docstring compliance."""
 
-
 import pytest
 from ament_pep257.main import main
 

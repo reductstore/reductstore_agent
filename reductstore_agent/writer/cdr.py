@@ -20,7 +20,6 @@
 
 """CDR output format logic per pipeline."""
 
-
 from typing import Any, Dict
 
 from rclpy.serialization import serialize_message

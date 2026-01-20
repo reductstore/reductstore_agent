@@ -64,7 +64,7 @@ class RosbagReplayer(Node):
         while rclpy.ok():
             self.get_logger().info("Starting bag replay...")
             while self.reader.has_next():
-                (topic_name, data, timestamp) = self.reader.read_next()
+                topic_name, data, timestamp = self.reader.read_next()
                 topic_type = self.topic_types[topic_name]
                 pkg, _, msg_type = topic_type.partition("/msg/")
                 module = __import__(f"{pkg}.msg", fromlist=[msg_type])
