@@ -35,12 +35,16 @@ class RosbagReplayer(Node):
     def __init__(self) -> None:
         """Initialize the RosbagReplayer node."""
         super().__init__("rosbag_replayer")
+
+        # Bag path parameter
         self.declare_parameter("bag_path", "demo_bags/demo.mcap")
         self.bag_path = (
             self.get_parameter("bag_path").get_parameter_value().string_value
         )
         if not os.path.exists(self.bag_path):
             raise FileNotFoundError(f"Bag path does not exist: {self.bag_path}")
+
+        # Initialize rosbag2 reader and publishers
         self._open_reader()
         self.topic_types = {
             topic.name: topic.type for topic in self.reader.get_all_topics_and_types()
