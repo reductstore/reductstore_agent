@@ -20,7 +20,6 @@
 
 """Define pipeline state."""
 
-
 from mcap.records import Schema
 from rclpy.timer import Timer
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2025 ReductSoftware UG
+# Copyright 2026 ReductSoftware UG
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Launch file for the reductstore_agent node."""
+"""Launch file for rosbag_replayer node."""
 
-import os
-
-from ament_index_python import get_package_share_directory
 from launch_ros.actions import Node, SetParameter
 
 from launch import LaunchDescription
@@ -33,63 +30,44 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    """Generate the launch description for the reductstore_agent node."""
+    """Generate the launch description for the rosbag_replayer node."""
+    demo_bag_path = "demo_bags/test.mcap"
+
     remappable_topics = [
-        DeclareLaunchArgument("input_topic", default_value="~/input"),
+        DeclareLaunchArgument("bag_path", default_value=demo_bag_path),
     ]
 
     args = [
         DeclareLaunchArgument(
-            "name", default_value="reductstore_agent", description="node name"
+            "name", default_value="rosbag_replayer", description="node name"
         ),
         DeclareLaunchArgument(
             "namespace", default_value="", description="node namespace"
         ),
         DeclareLaunchArgument(
             "params",
-            default_value=os.path.join(
-                get_package_share_directory("reductstore_agent"),
-                "config",
-                "params.yml",
-            ),
-            description="path to parameter file",
+            default_value=demo_bag_path,
+            description="path to rosbag file",
         ),
         DeclareLaunchArgument(
             "log_level",
             default_value="info",
-            description="ROS logging level (debug, info, warn, error, fatal)",
+            description="log level for the rosbag_replayer node",
         ),
-        DeclareLaunchArgument(
-            "use_sim_time", default_value="false", description="use simulation clock"
-        ),
-        *remappable_topics,
     ]
 
-    nodes = [
-        Node(
-            package="reductstore_agent",
-            executable="recorder",
-            namespace=LaunchConfiguration("namespace"),
-            name=LaunchConfiguration("name"),
-            parameters=[LaunchConfiguration("params")],
-            arguments=[
-                "--ros-args",
-                "--log-level",
-                LaunchConfiguration("log_level"),
-            ],
-            remappings=[
-                (la.default_value[0].text, LaunchConfiguration(la.name))
-                for la in remappable_topics
-            ],
-            output="screen",
-            emulate_tty=True,
-        )
-    ]
-
-    return LaunchDescription(
-        [
-            *args,
-            SetParameter("use_sim_time", LaunchConfiguration("use_sim_time")),
-            *nodes,
-        ]
+    rosbag_replayer_node = Node(
+        package="rosbag_replayer",
+        executable="rosbag_replayer",
+        name=LaunchConfiguration("name"),
+        namespace=LaunchConfiguration("namespace"),
+        parameters=[
+            SetParameter(name="log_level", value=LaunchConfiguration("log_level")),
+            {
+                "bag_path": LaunchConfiguration("bag_path"),
+            },
+        ],
+        output="screen",
     )
+
+    return LaunchDescription(args + remappable_topics + [rosbag_replayer_node])

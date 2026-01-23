@@ -30,13 +30,10 @@ from rclpy.publisher import Publisher
 from reduct import Client
 from std_msgs.msg import Float32, Int32, String
 
-from reductstore_agent.models import (
-    LabelMode,
-    LabelTopicConfig,
-    PipelineConfig,
-)
+from reductstore_agent.models import LabelMode, LabelTopicConfig, PipelineConfig
 from reductstore_agent.recorder import Recorder
 from reductstore_agent.utils import get_or_create_event_loop
+from rosbag_replayer.rosbag_replayer import RosbagReplayer
 
 from .config.test_recorder_params import (
     as_overrides,
@@ -567,3 +564,11 @@ def remote_publishers(publisher_node):
             String, topic=topic, qos_profile=10
         )
     return publishers
+
+
+@pytest.fixture
+def rosbag_replayer_node() -> Generator[RosbagReplayer, None, None]:
+    """Create a RosbagReplayer node for testing."""
+    node = RosbagReplayer("testdata/demo.mcap")
+    yield node
+    node.destroy_node()

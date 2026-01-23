@@ -29,3 +29,6 @@ env/
 .venv/
 .env/
 .env
+
+# Demo Bags
+demo_bags/

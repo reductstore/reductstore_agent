@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+snapctl set replayer.enabled=false
+if [[ "$SNAP_INSTALL_FLAGS" == *"--replayer"* ]]; then
+  snapctl set replayer.enabled=true
+  echo "rosbag_replayer enabled via install flag"
+fi
+
 if [ -t 2 ]; then
   RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 else

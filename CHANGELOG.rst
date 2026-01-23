@@ -31,3 +31,5 @@ Changelog for package reductstore_agent
   Add remote configuration auto-sync feature
 * Merge pull request `#47 <https://github.com/reductstore/reductstore_agent/pull/47>`_ from reductstore/43-reorganize-documentation
   Reorganize documentation
+* Merge pull request `#49 <https://github.com/reductstore/reductstore_agent/pull/49>`_ from reductstore/45-ros-node-for-producing-data
+  Add ROS node for producing data
