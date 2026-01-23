@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2025 ReductSoftware UG
+# Copyright 2026 ReductSoftware UG
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
