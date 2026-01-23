@@ -85,6 +85,7 @@ jobs:
             ros-jazzy-sensor-msgs
             ros-jazzy-geometry-msgs
             ros-jazzy-rosbag2-py
+            ros-jazzy-rosbag2-storage-mcap
           AFTER_INIT: |
             pip install --break-system-packages \
               mcap \
@@ -113,6 +114,7 @@ jobs:
             ros-rolling-sensor-msgs
             ros-rolling-geometry-msgs
             ros-rolling-rosbag2-py
+            ros-rolling-rosbag2-storage-mcap
           AFTER_INIT: |
             pip install --force-reinstall --ignore-installed --break-system-packages \
               mcap \
