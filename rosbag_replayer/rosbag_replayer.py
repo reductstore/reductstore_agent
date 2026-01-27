@@ -28,7 +28,7 @@ from rclpy.qos import QoSProfile
 from rclpy.serialization import deserialize_message
 from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
 
-DEFAULT_BAG_PATH = "demo_bags/demo.mcap"
+DEFAULT_BAG_PATH = "testdata/demo.mcap"
 
 
 class RosbagReplayer(Node):
