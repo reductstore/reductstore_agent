@@ -15,6 +15,14 @@ base: core24
 confinement: strict
 grade: devel
 
+components:
+  replayer:
+    type: standard
+    summary: Optional rosbag replayer
+    description: |
+      Adds the rosbag_replayer node for replaying MCAP bag files.
+      Install with: snap install reductstore-agent+replayer
+
 plugs:
   configuration-read:
     interface: content
@@ -47,9 +55,23 @@ parts:
       - ros-jazzy-rclpy
       - ros-jazzy-rosbag2-py
       - ros-jazzy-rosbag2-storage-mcap
+      - ros-jazzy-std-msgs
+      - ros-jazzy-sensor-msgs
+      - ros-jazzy-geometry-msgs
+      - ros-jazzy-nav-msgs
     override-build: |
       set -e
+
+      # temporarily move rosbag_replayer
+      if [ -d rosbag_replayer ]; then
+        mv rosbag_replayer rosbag_replayer.component
+      fi
+
       craftctl default
+
+      if [ -d rosbag_replayer.component ]; then
+        mv rosbag_replayer.component rosbag_replayer
+      fi
 
       # make local venv with system packages
       python3 -m venv venv --system-site-packages
@@ -60,6 +82,13 @@ parts:
 
       # copy venv site-packages into snap stage
       cp -a venv/lib/python3.*/site-packages/* $CRAFT_PART_INSTALL/usr/lib/python3/dist-packages/
+
+  # Replayer component - files go into the 'replayer' component, not the main snap
+  replayer:
+    plugin: dump
+    source: rosbag_replayer/
+    organize:
+      '*.py': (component/replayer)/usr/lib/python3/dist-packages/rosbag_replayer/
 
 apps:
   recorder:
@@ -73,10 +102,11 @@ apps:
       RCUTILS_COLORIZED_OUTPUT: "1"
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
-  rosbag_replayer:
+
+  rosbag-replayer:
     command: usr/bin/run_replayer.sh
     extensions: [ros2-jazzy]
-    plugs: [network, network-bind]
+    plugs: [network, network-bind, home]
     environment:
       ROS_DOMAIN_ID: "0"
       ROS_AUTOMATIC_DISCOVERY_RANGE: "SUBNET"
