@@ -5,20 +5,26 @@ from glob import glob
 
 from setuptools import setup
 
-package_name = "reductstore_agent"
+# Core package is always installed
+packages = ["reductstore_agent"]
+console_scripts = ["recorder = reductstore_agent.recorder:main"]
+
+if os.path.isdir("rosbag_replayer"):
+    packages.append("rosbag_replayer")
+    console_scripts.append("rosbag_replayer = rosbag_replayer.rosbag_replayer:main")
 
 setup(
-    name=package_name,
+    name="reductstore_agent",
     version="0.2.0",
-    packages=[package_name],
+    packages=packages,
     data_files=[
-        ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
-        (os.path.join("share", package_name), ["package.xml"]),
+        ("share/ament_index/resource_index/packages", ["resource/reductstore_agent"]),
+        (os.path.join("share", "reductstore_agent"), ["package.xml"]),
         (
-            os.path.join("share", package_name, "launch"),
+            os.path.join("share", "reductstore_agent", "launch"),
             glob("launch/*launch.[pxy][yma]*"),
         ),
-        (os.path.join("share", package_name, "config"), glob("config/*")),
+        (os.path.join("share", "reductstore_agent", "config"), glob("config/*")),
     ],
     install_requires=[
         "setuptools",
@@ -43,6 +49,6 @@ setup(
     license="MIT",
     # tests_require=["pytest"],
     entry_points={
-        "console_scripts": ["recorder = reductstore_agent.recorder:main"],
+        "console_scripts": console_scripts,
     },
 )

@@ -59,9 +59,9 @@ Choose one of the following installation methods:
 ```bash
 sudo snap install reductstore-agent --edge
 ```
-Optionally you can also install a [rosbag_replayer node](https://github.com/reductstore/rosbag_replayer#readme) with the **--replayer** flag
+Optionally you can also install a [rosbag_replayer node](https://github.com/reductstore/rosbag_replayer#readme) component
 ```bash
-sudo snap install reductstore-agent --edge --replayer
+sudo snap install reductstore-agent+replayer --edge
 ```
 
 #### b) Build from Source

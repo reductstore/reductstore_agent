@@ -57,7 +57,7 @@ def generate_launch_description():
     ]
 
     rosbag_replayer_node = Node(
-        package="rosbag_replayer",
+        package="reductstore_agent",
         executable="rosbag_replayer",
         name=LaunchConfiguration("name"),
         namespace=LaunchConfiguration("namespace"),
