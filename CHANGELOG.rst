@@ -35,3 +35,5 @@ Changelog for package reductstore_agent
   Add ROS node for producing data
 * Merge pull request `#50 <https://github.com/reductstore/reductstore_agent/pull/50>`_ from reductstore/rosbag_replayer_config
   Add default config for rosbag replayer
+* Merge pull request `#52 <https://github.com/reductstore/reductstore_agent/pull/52>`_ from reductstore/51-fix-snap-component-replayer
+  Fix snap distribution for replayer component
