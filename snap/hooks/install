@@ -32,4 +32,7 @@ else
   info "Seeded system config: $SYSTEM_CONFIG"
 fi
 
+snapctl set replayer.enabled=false
+info "Replayer disabled by default"
+
 info "Install hook complete"
