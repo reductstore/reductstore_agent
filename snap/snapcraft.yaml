@@ -66,6 +66,12 @@ parts:
       # copy venv site-packages into snap stage
       cp -a venv/lib/python3.*/site-packages/* $CRAFT_PART_INSTALL/usr/lib/python3/dist-packages/
 
+  replayer:
+    plugin: dump
+    source: rosbag_replayer/
+    organize:
+      '*.py': usr/lib/python3/dist-packages/rosbag_replayer/
+
 apps:
   recorder:
     command: usr/bin/run_recorder.sh

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -t 2 ]; then
+	GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+else
+	GREEN=''; YELLOW=''; RED=''; NC=''
+fi
+info()  { printf "%bINFO%b  %s\n"  "$GREEN" "$NC" "$*" >&2; }
+warn()  { printf "%bWARN%b  %s\n"  "$YELLOW" "$NC" "$*" >&2; }
+error() { printf "%bERROR%b %s\n" "$RED" "$NC" "$*" >&2; }
+
+# Validate replayer.enabled setting
+REPLAYER_ENABLED=$(snapctl get replayer.enabled || echo "")
+
+if [ -n "$REPLAYER_ENABLED" ] && [ "$REPLAYER_ENABLED" != "true" ] && [ "$REPLAYER_ENABLED" != "false" ]; then
+	error "Invalid value for replayer.enabled: '$REPLAYER_ENABLED' (must be 'true' or 'false')"
+	exit 1
+fi
+
+if [ "$REPLAYER_ENABLED" = "true" ]; then
+	info "replayer.enabled=true"
+else
+	info "replayer.enabled=false (or unset)"
+fi
+
+info "Configure hook complete"

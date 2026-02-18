@@ -11,9 +11,11 @@ info()  { printf "%bINFO%b  %s\n"  "$GREEN" "$NC" "$*" >&2; }
 warn()  { printf "%bWARN%b  %s\n"  "$YELLOW" "$NC" "$*" >&2; }
 error() { printf "%bERROR%b %s\n" "$RED" "$NC" "$*" >&2; }
 
-REPLAYER_ENABLED="$(snapctl get replayer.enabled 2>/dev/null || true)"
+# Check if replayer is enabled via snap configuration
+REPLAYER_ENABLED=$(snapctl get replayer.enabled || echo "")
 if [ "$REPLAYER_ENABLED" != "true" ]; then
-  error "Replayer is disabled. Enable with: sudo snap set reductstore-agent replayer.enabled=true"
+  error "rosbag replayer is not enabled."
+  error "Enable with: sudo snap set reductstore-agent replayer.enabled=true"
   exit 1
 fi
 

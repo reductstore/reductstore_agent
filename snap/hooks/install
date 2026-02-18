@@ -32,7 +32,7 @@ else
   info "Seeded system config: $SYSTEM_CONFIG"
 fi
 
+# Set replayer.enabled to false by default on install
 snapctl set replayer.enabled=false
-info "Replayer disabled by default"
 
 info "Install hook complete"
