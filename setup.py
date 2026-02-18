@@ -3,7 +3,7 @@
 import os
 from glob import glob
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 packages = find_packages(include=["reductstore_agent", "reductstore_agent.*"])
 console_scripts = ["recorder = reductstore_agent.recorder:main"]
