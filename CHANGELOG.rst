@@ -37,3 +37,5 @@ Changelog for package reductstore_agent
   Add default config for rosbag replayer
 * Merge pull request `#52 <https://github.com/reductstore/reductstore_agent/pull/52>`_ from reductstore/51-fix-snap-component-replayer
   Fix snap distribution for replayer component
+* Merge pull request `#53 <https://github.com/reductstore/reductstore_agent/pull/53>`_ from reductstore/snap-bundle
+  Modified snap distribution to include both agent and replayer components, and added install hook to set default config and disable replayer by default

@@ -11,18 +11,13 @@ info()  { printf "%bINFO%b  %s\n"  "$GREEN" "$NC" "$*" >&2; }
 warn()  { printf "%bWARN%b  %s\n"  "$YELLOW" "$NC" "$*" >&2; }
 error() { printf "%bERROR%b %s\n" "$RED" "$NC" "$*" >&2; }
 
-# Check if replayer component is installed
-SNAP_BASE="${SNAP%/*}"  # /snap/reductstore-agent
-REPLAYER_COMPONENT="${SNAP_BASE}/components/${SNAP_REVISION}/replayer"
-
-if [ ! -d "$REPLAYER_COMPONENT" ]; then
-  error "rosbag replayer component not installed."
-  error "Install with: sudo snap install reductstore-agent+replayer"
+# Check if replayer is enabled via snap configuration
+REPLAYER_ENABLED=$(snapctl get replayer.enabled || echo "")
+if [ "$REPLAYER_ENABLED" != "true" ]; then
+  error "rosbag replayer is not enabled."
+  error "Enable with: sudo snap set reductstore-agent replayer.enabled=true"
   exit 1
 fi
-
-# Add component's Python path
-export PYTHONPATH="${REPLAYER_COMPONENT}/usr/lib/python3/dist-packages:${PYTHONPATH:-}"
 
 info "Starting rosbag replayer"
 exec ros2 run reductstore_agent rosbag_replayer "$@"

@@ -3,14 +3,14 @@
 import os
 from glob import glob
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
-# Core package is always installed
-packages = ["reductstore_agent"]
+packages = find_packages(include=["reductstore_agent", "reductstore_agent.*"])
 console_scripts = ["recorder = reductstore_agent.recorder:main"]
 
 if os.path.isdir("rosbag_replayer"):
-    packages.append("rosbag_replayer")
+    # include rosbag_replayer and any subpackages too
+    packages += find_packages(include=["rosbag_replayer", "rosbag_replayer.*"])
     console_scripts.append("rosbag_replayer = rosbag_replayer.rosbag_replayer:main")
 
 setup(
@@ -36,19 +36,12 @@ setup(
         "numpy",
     ],
     extras_require={
-        "test": [
-            "pytest",
-            "flake8",
-            "pydocstyle",
-        ],
+        "test": ["pytest", "flake8", "pydocstyle"],
     },
     zip_safe=True,
     maintainer="Anthony",
     maintainer_email="info@reduct.store",
     description="ROS2 Reduct Agent",
     license="MIT",
-    # tests_require=["pytest"],
-    entry_points={
-        "console_scripts": console_scripts,
-    },
+    entry_points={"console_scripts": console_scripts},
 )
