@@ -39,3 +39,5 @@ Changelog for package reductstore_agent
   Fix snap distribution for replayer component
 * Merge pull request `#53 <https://github.com/reductstore/reductstore_agent/pull/53>`_ from reductstore/snap-bundle
   Modified snap distribution to include both agent and replayer components, and added install hook to set default config and disable replayer by default
+* Merge pull request `#54 <https://github.com/reductstore/reductstore_agent/pull/54>`_ from reductstore/fix-replayer-path
+  Fix path to demo bag not accepting arguments and not working in snap distribution
