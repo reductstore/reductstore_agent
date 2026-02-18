@@ -34,12 +34,12 @@ DEFAULT_BAG_PATH = "testdata/demo.mcap"
 class RosbagReplayer(Node):
     """ROS2 Node which replays data from rosbag2 files."""
 
-    def __init__(self, bag_path: str = DEFAULT_BAG_PATH) -> None:
+    def __init__(self, bag_path: str | None = None) -> None:
         """Initialize the RosbagReplayer node."""
         super().__init__("rosbag_replayer")
 
         # Bag path parameter and validation
-        if bag_path:
+        if bag_path is not None:
             self.bag_path = bag_path
         else:
             self.bag_path = (
@@ -145,9 +145,9 @@ class RosbagReplayer(Node):
         self._stop_replaying = True
 
 
-def main():
+def main(args=None):
     """Start the rosbag replayer node."""
-    rclpy.init()
+    rclpy.init(args=args)
     node = None
     try:
         node = RosbagReplayer()
