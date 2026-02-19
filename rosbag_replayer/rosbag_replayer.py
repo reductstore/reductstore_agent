@@ -42,7 +42,7 @@ class RosbagReplayer(Node):
         # Bag path parameter and validation
         # Declare the ROS parameter first
         bag_path_param = self.declare_parameter("bag_path", DEFAULT_BAG_PATH)
-        
+
         # Use provided argument if given, otherwise use ROS parameter
         if bag_path is not None:
             self.bag_path = bag_path

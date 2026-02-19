@@ -27,6 +27,7 @@ import rclpy
 
 from rosbag_replayer.rosbag_replayer import RosbagReplayer
 
+
 def test_rosbag_replayer_node_initialization(rosbag_replayer_node):
     """Test that the RosbagReplayer node initializes correctly."""
     # Bag Path
@@ -34,6 +35,7 @@ def test_rosbag_replayer_node_initialization(rosbag_replayer_node):
     # Topic types and publishers
     assert len(rosbag_replayer_node.topic_types) > 0
     assert len(rosbag_replayer_node._topic_publishers) > 0
+
 
 def test_rosbag_replayer_raises_error_for_nonexistent_bag():
     """Test that RosbagReplayer raises FileNotFoundError for non-existent bag path."""
@@ -56,8 +58,12 @@ def test_throttle_playback_sleeps(rosbag_replayer_node):
     with patch("time.sleep", mock_sleep):
         rosbag_replayer_node._throttle_playback(100_000_000)  # 100ms in nanoseconds
 
-    assert sleep_called["count"] > 0, "Throttle should call time.sleep to prevent CPU spinning"
-    assert sleep_called["total_sleep"] > 0, "Throttle should sleep for a positive duration"
+    assert (
+        sleep_called["count"] > 0
+    ), "Throttle should call time.sleep to prevent CPU spinning"
+    assert (
+        sleep_called["total_sleep"] > 0
+    ), "Throttle should sleep for a positive duration"
 
 
 def test_throttle_playback_minimum_sleep_when_behind(rosbag_replayer_node):
@@ -81,8 +87,9 @@ def test_throttle_playback_minimum_sleep_when_behind(rosbag_replayer_node):
         rosbag_replayer_node._throttle_playback(100_000_000)  # 100ms recorded time
 
     assert sleep_called["count"] > 0, "Throttle should still sleep when behind schedule"
-    assert 0.0001 in sleep_called["durations"], "Should use minimum sleep (0.1ms) when behind"
-
+    assert (
+        0.0001 in sleep_called["durations"]
+    ), "Should use minimum sleep (0.1ms) when behind"
 
 
 def test_message_replay(rosbag_replayer_node):
