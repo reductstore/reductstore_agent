@@ -59,9 +59,9 @@ Choose one of the following installation methods:
 ```bash
 sudo snap install reductstore-agent --edge
 ```
-Optionally you can also install a [rosbag_replayer node](https://github.com/reductstore/rosbag_replayer#readme) component
+Optionally you can also enable a [rosbag_replayer node](https://github.com/reductstore/reductstore_agent/tree/main/rosbag_replayer)
 ```bash
-sudo snap install reductstore-agent+replayer --edge
+sudo snap set reductstore-agent replayer.enabled=true
 ```
 
 #### b) Build from Source
@@ -92,8 +92,11 @@ python -m colcon build --symlink-install
 ```bash
 # For both Snap and source installs:
 ros2 run reductstore_agent recorder --ros-args --params-file ./config/params.yml
-# rosbag_replayer
-ros2 run reductstore_agent rosbag_replayer
+
+# rosbag_replayer with custom bag path and playback rate
+ros2 run reductstore_agent rosbag_replayer --ros-args \
+  -p bag_path:=/path/to/your/rosbag.mcap \
+  -p playback_rate:=1.0
 ```
 
 > **Note:** The recorder requires a parameters file to start. Both the Snap and source distributions include a default configuration suitable for local testing.
