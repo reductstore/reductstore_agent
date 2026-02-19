@@ -21,6 +21,7 @@
 """ROS2 Node to produce data for reductstore from rosbag2 files."""
 
 import os
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -34,25 +35,32 @@ DEFAULT_BAG_PATH = "testdata/demo.mcap"
 class RosbagReplayer(Node):
     """ROS2 Node which replays data from rosbag2 files."""
 
-    def __init__(self, bag_path: str | None = None) -> None:
+    def __init__(self, bag_path: str = None) -> None:
         """Initialize the RosbagReplayer node."""
         super().__init__("rosbag_replayer")
 
         # Bag path parameter and validation
+        # Declare the ROS parameter first
+        bag_path_param = self.declare_parameter("bag_path", DEFAULT_BAG_PATH)
+        
+        # Use provided argument if given, otherwise use ROS parameter
         if bag_path is not None:
             self.bag_path = bag_path
         else:
-            self.bag_path = (
-                self.declare_parameter("bag_path", DEFAULT_BAG_PATH)
-                .get_parameter_value()
-                .string_value
-            )
+            self.bag_path = bag_path_param.get_parameter_value().string_value
 
         if not os.path.exists(self.bag_path):
             raise FileNotFoundError(f"Bag path does not exist: {self.bag_path}")
 
+        # Playback speed control
+        playback_rate_param = self.declare_parameter("playback_rate", 1.0)
+        self.playback_rate = playback_rate_param.get_parameter_value().double_value
+        if self.playback_rate <= 0:
+            raise ValueError("playback_rate must be positive")
+
         # Initialize reader and publishers
         self._open_reader()
+        self._reset_playback_state()
         self.topic_types = {
             topic.name: topic.type for topic in self.reader.get_all_topics_and_types()
         }
@@ -83,6 +91,9 @@ class RosbagReplayer(Node):
                 if msg is None:
                     break
 
+                # Throttle playback to respect recorded timing
+                self._throttle_playback(timestamp)
+
                 # Update timestamp and publish message
                 msg = self.update_message_timestamp(msg)
                 self.publish_message(topic_name, msg)
@@ -94,6 +105,31 @@ class RosbagReplayer(Node):
                 # Replayer reached end of bag, restart
                 self.get_logger().info("Reached end of bag, restarting...")
                 self._open_reader()
+                self._reset_playback_state()
+
+    def _reset_playback_state(self) -> None:
+        """Reset playback timing state."""
+        self._bag_start_time = None
+        self._wall_start_time = None
+
+    def _throttle_playback(self, recorded_timestamp_ns: int) -> None:
+        """Sleep to match recorded message timing."""
+        if self._bag_start_time is None:
+            self._bag_start_time = recorded_timestamp_ns
+            self._wall_start_time = self.get_clock().now().nanoseconds
+            return
+
+        elapsed_bag_ns = recorded_timestamp_ns - self._bag_start_time
+        adjusted_elapsed_ns = int(elapsed_bag_ns / self.playback_rate)
+        target_wall_ns = self._wall_start_time + adjusted_elapsed_ns
+        now_ns = self.get_clock().now().nanoseconds
+        wait_ns = target_wall_ns - now_ns
+
+        if wait_ns > 0:
+            time.sleep(wait_ns / 1_000_000_000)
+        else:
+            # Minimum yield to prevent CPU spinning when behind schedule
+            time.sleep(0.0001)
 
     def _create_publishers(self):
         """Create publishers for each topic in the rosbag."""
@@ -145,9 +181,9 @@ class RosbagReplayer(Node):
         self._stop_replaying = True
 
 
-def main(args=None):
+def main():
     """Start the rosbag replayer node."""
-    rclpy.init(args=args)
+    rclpy.init()
     node = None
     try:
         node = RosbagReplayer()
