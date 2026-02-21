@@ -14,10 +14,16 @@ The `Rosbag Replayer` node is a ROS 2 node designed to replay data from rosbag2 
 ## Parameters
 The node accepts the following parameters:
 
-| Parameter Name | Type   | Default Value         | Description                          |
-|----------------|--------|-----------------------|--------------------------------------|
-| `bag_path`     | string | `demo_bags/test.mcap` | Path to the rosbag file to replay.   |
-| `log_level`    | string | `info`               | Logging level for the node.          |
+| Parameter Name   | Type   | Default Value         | Description                                      |
+|------------------|--------|-----------------------|--------------------------------------------------|
+| `bag_path`       | string | `testdata/demo.mcap`  | Path to the rosbag file to replay.               |
+| `playback_rate`  | double | `1.0`                 | Playback speed multiplier (1.0 = real-time).     |
+| `log_level`      | string | `info`                | Logging level for the node.                      |
+
+### Playback Rate Examples
+- `1.0` = Real-time (original recording speed)
+- `0.5` = Half speed (twice as slow)
+- `2.0` = Double speed (twice as fast)
 
 ## Launch File Usage
 A launch file is provided to simplify the usage of the `Rosbag Replayer` node. The launch file allows you to specify the `bag_path` and other parameters.
@@ -25,6 +31,19 @@ A launch file is provided to simplify the usage of the `Rosbag Replayer` node. T
 ### Example Launch Command
 ```bash
 ros2 launch reductstore_agent rosbag_replayer_launch.py bag_path:=/path/to/your/rosbag.mcap
+```
+
+### Running with ros2 run
+```bash
+# Real-time playback with custom bag path
+ros2 run reductstore_agent rosbag_replayer --ros-args \
+  -p bag_path:=/path/to/your/rosbag.mcap \
+  -p playback_rate:=1.0
+
+# Half speed playback
+ros2 run reductstore_agent rosbag_replayer --ros-args \
+  -p bag_path:=/path/to/your/rosbag.mcap \
+  -p playback_rate:=0.5
 ```
 
 ### Launch File Arguments
