@@ -1,4 +1,4 @@
-# Copyright 2025 ReductSoftware UG
+# Copyright 2026 ReductSoftware UG
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -142,7 +142,9 @@ class ConfigManager:
 
     async def read_remote_bucket(self) -> str:
         """Read YAML configuration payload from remote ReductStore bucket."""
-        remote_bucket = await self.node.client.get_bucket(self.node.remote_config.bucket)
+        remote_bucket = await self.node.client.get_bucket(
+            self.node.remote_config.bucket
+        )
         entry_name = self.node.remote_config.entry
         async with remote_bucket.read(entry_name) as record:
             data = await record.read_all()
@@ -156,9 +158,7 @@ class ConfigManager:
             await self.reload_pipeline_configuration(yaml_str)
             self.node.log_info(lambda: "Remote configuration fetched and applied.")
         except Exception as exc:
-            self.node.log_warn(
-                lambda exc=exc: f"Failed to fetch configuration: {exc}"
-            )
+            self.node.log_warn(lambda exc=exc: f"Failed to fetch configuration: {exc}")
 
     async def reload_pipeline_configuration(self, yaml_str: str):
         """Reload and apply pipeline configuration if it changed."""

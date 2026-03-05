@@ -84,7 +84,9 @@ class PipelineManager:
     def reset_pipeline_state(self, pipeline_name: str, state: PipelineState):
         """Reset writer and state for a pipeline segment."""
         cfg = self.node.pipeline_configs[pipeline_name]
-        new_writer = create_writer(cfg, self.node.bucket, pipeline_name, self.node.logger)
+        new_writer = create_writer(
+            cfg, self.node.bucket, pipeline_name, self.node.logger
+        )
 
         state.writer = new_writer
         state.current_size = 0
@@ -129,7 +131,9 @@ class PipelineManager:
                 lambda pipeline_name=pipeline_name: f"[{pipeline_name}] "
                 "Pipeline flushed and removed."
             )
-            await self.node.pipeline_states[pipeline_name].writer.flush_and_upload_batch()
+            await self.node.pipeline_states[
+                pipeline_name
+            ].writer.flush_and_upload_batch()
             self.remove_pipeline(pipeline_name)
 
         for pipeline_name in new_pipelines - current_pipelines:
@@ -196,7 +200,8 @@ class PipelineManager:
 
             if "/msg/" not in msg_type_str:
                 self.node.log_warn(
-                    lambda topic=topic, msg_type_str=msg_type_str: f"Skipping '{topic}': "
+                    lambda topic=topic, msg_type_str=msg_type_str:
+                    f"Skipping '{topic}': "
                     f"Invalid message type format '{msg_type_str}'."
                 )
                 continue
@@ -204,7 +209,9 @@ class PipelineManager:
             self.register_message_schema(topic, msg_type_str)
 
             if any(sub.topic_name == topic for sub in self.node.subscribers):
-                self.node.log_debug(lambda topic=topic: f"Already subscribed to '{topic}'")
+                self.node.log_debug(
+                    lambda topic=topic: f"Already subscribed to '{topic}'"
+                )
                 continue
 
             pkg, msg = msg_type_str.split("/msg/")
@@ -269,7 +276,8 @@ class PipelineManager:
             if not schema:
                 self.node.log_warn(
                     lambda pipeline_name=pipeline_name, topic_name=topic_name: (
-                        f"[{pipeline_name}] No schema registered for topic '{topic_name}'"
+                        f"[{pipeline_name}] No schema registered for"
+                        f" topic '{topic_name}'"
                     )
                 )
                 continue
