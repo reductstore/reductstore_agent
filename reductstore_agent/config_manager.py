@@ -186,7 +186,7 @@ class ConfigManager:
                 name: PipelineConfig(**cfg)
                 for name, cfg in loaded_data.get("pipelines", {}).items()
             }
-            self.node.log_info(lambda: "Pipeline Configuration validated.")
+            self.node.log_info(lambda: "Pipeline configuration validated.")
             return pipeline_cfgs
         except Exception as exc:
             self.node.log_warn(

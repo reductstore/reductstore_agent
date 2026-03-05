@@ -115,15 +115,19 @@ class CdrOutputWriter(OutputWriter):
         self.append_record(timestamp_us, serialized_data, labels)
 
         if self._batch_size_bytes >= self._flush_threshold_bytes:
-            self.logger.info("Threshold triggered")
+            self.logger.info(f"[{self.pipeline_name}] Threshold triggered.")
             loop.run_until_complete(self.flush_and_upload_batch())
 
         elif len(self._batch) >= BATCH_MAX_RECORDS:
-            self.logger.info("Exceeded max records of batch. Uploading batch.")
+            self.logger.info(
+                f"[{self.pipeline_name}] Exceeded max records in batch. Uploading."
+            )
             loop.run_until_complete(self.flush_and_upload_batch())
 
         elif self._batch_metadata_size >= BATCH_MAX_METADATA_SIZE:
-            self.logger.info("Exceeded metadata threshold. Uploading batch.")
+            self.logger.info(
+                f"[{self.pipeline_name}] Exceeded metadata threshold. Uploading."
+            )
             loop.run_until_complete(self.flush_and_upload_batch())
 
     def append_record(
@@ -142,7 +146,7 @@ class CdrOutputWriter(OutputWriter):
         if self._batch_size_bytes == 0:
             return
         if self._is_flushing:
-            self.logger.info("Already flushing. Returning ...")
+            self.logger.info(f"[{self.pipeline_name}] Already flushing. Skipping.")
             return
 
         self._is_flushing = True
@@ -155,11 +159,13 @@ class CdrOutputWriter(OutputWriter):
                 entry_name=self.pipeline_name, batch=batch_to_send
             )
             if errors:
-                self.logger.warning("Error with writing batch to bucket.")
+                self.logger.warning(
+                    f"[{self.pipeline_name}] Error while writing batch to bucket."
+                )
             else:
-                self.logger.info("Uploaded batch.")
+                self.logger.info(f"[{self.pipeline_name}] Uploaded batch.")
         except Exception as exc:
-            self.logger.error(f"[{self.pipeline_name}]Failed to upload batch: {exc}")
+            self.logger.error(f"[{self.pipeline_name}] Failed to upload batch: {exc}")
         finally:
             self._is_flushing = False
 

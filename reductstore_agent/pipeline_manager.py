@@ -128,8 +128,7 @@ class PipelineManager:
 
         for pipeline_name in current_pipelines - new_pipelines:
             self.node.log_info(
-                lambda pipeline_name=pipeline_name: f"[{pipeline_name}] "
-                "Pipeline flushed and removed."
+                lambda: f"[{pipeline_name}] " "Pipeline flushed and removed."
             )
             await self.node.pipeline_states[
                 pipeline_name
@@ -192,7 +191,7 @@ class PipelineManager:
             msg_types = topic_types.get(topic)
             if not msg_types:
                 self.node.log_warn(
-                    lambda topic=topic: f"Skipping '{topic}': No message type found."
+                    lambda: f"Skipping '{topic}': No message type found."
                 )
                 continue
 
@@ -200,8 +199,7 @@ class PipelineManager:
 
             if "/msg/" not in msg_type_str:
                 self.node.log_warn(
-                    lambda topic=topic, msg_type_str=msg_type_str:
-                    f"Skipping '{topic}': "
+                    lambda: f"Skipping '{topic}': "
                     f"Invalid message type format '{msg_type_str}'."
                 )
                 continue
@@ -209,9 +207,7 @@ class PipelineManager:
             self.register_message_schema(topic, msg_type_str)
 
             if any(sub.topic_name == topic for sub in self.node.subscribers):
-                self.node.log_debug(
-                    lambda topic=topic: f"Already subscribed to '{topic}'"
-                )
+                self.node.log_debug(lambda: f"Already subscribed to '{topic}'")
                 continue
 
             pkg, msg = msg_type_str.split("/msg/")
@@ -219,11 +215,8 @@ class PipelineManager:
                 module = importlib.import_module(f"{pkg}.msg")
                 msg_type = getattr(module, msg)
             except (ModuleNotFoundError, AttributeError) as exc:
-                self.node.log_warn(
-                    lambda topic=topic, msg_type_str=msg_type_str, exc=exc: (
-                        f"Skipping '{topic}': Cannot import '{msg_type_str}' ({exc})"
-                    )
-                )
+                msg = f"Skipping '{topic}': Cannot import '{msg_type_str}' ({exc})"
+                self.node.log_warn(lambda: msg)
                 continue
 
             sub = self.node.create_subscription(
@@ -233,11 +226,7 @@ class PipelineManager:
                 QoSProfile(depth=10),
             )
             self.node.subscribers.append(sub)
-            self.node.log_info(
-                lambda topic=topic, msg_type_str=msg_type_str: (
-                    f"Subscribed to '{topic}' [{msg_type_str}]"
-                )
-            )
+            self.node.log_info(lambda: f"Subscribed to '{topic}' [{msg_type_str}]")
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register schema for all pipelines matching topic."""
@@ -253,7 +242,7 @@ class PipelineManager:
         for pipeline_name, state in self.node.pipeline_states.items():
             if topic_name not in state.topics:
                 self.node.log_debug(
-                    lambda pipeline_name=pipeline_name, topic_name=topic_name: (
+                    lambda: (
                         f"Skipping message for pipeline '{pipeline_name}' "
                         f"- topic '{topic_name}' not included."
                     )
@@ -267,7 +256,7 @@ class PipelineManager:
                 continue
 
             self.node.log_debug(
-                lambda pipeline_name=pipeline_name, topic_name=topic_name: (
+                lambda: (
                     f"Writing message to pipeline '{pipeline_name}' [{topic_name}]"
                 )
             )
@@ -275,7 +264,7 @@ class PipelineManager:
             schema = state.schemas_by_topic.get(topic_name)
             if not schema:
                 self.node.log_warn(
-                    lambda pipeline_name=pipeline_name, topic_name=topic_name: (
+                    lambda: (
                         f"[{pipeline_name}] No schema registered for"
                         f" topic '{topic_name}'"
                     )
@@ -294,15 +283,13 @@ class PipelineManager:
         """Trigger writer upload for one pipeline."""
         if not state.writer:
             self.node.log_warn(
-                lambda pipeline_name=pipeline_name: (
-                    f"[{pipeline_name}] No writer available - skipping upload."
-                )
+                lambda: f"[{pipeline_name}] No writer available - skipping upload."
             )
             return
 
         if state.is_uploading:
             self.node.log_warn(
-                lambda pipeline_name=pipeline_name: (
+                lambda: (
                     f"[{pipeline_name}] Upload already in progress - skipping upload."
                 )
             )
@@ -313,6 +300,4 @@ class PipelineManager:
             if state.timer:
                 state.timer.reset()
         except Exception:
-            self.node.log_warn(
-                lambda pipeline_name=pipeline_name: f"[{pipeline_name}] Upload failed."
-            )
+            self.node.log_warn(lambda: f"[{pipeline_name}] Upload failed.")
