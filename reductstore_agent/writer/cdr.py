@@ -24,7 +24,9 @@ from typing import Any, Dict
 
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
+from rosbag2_py import LocalMessageDefinitionSource
 
+from ..attachment import AttachmentHandler
 from ..dynamic_labels import LabelStateTracker
 from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
@@ -54,14 +56,20 @@ class CdrOutputWriter(OutputWriter):
         self._is_flushing = False
         self._batch_metadata_size: int = 0
         self.label_tracker = label_tracker
-
         self._topic_to_msg_type: Dict[str, str] = {}
+        self._topic_to_schema: Dict[str, str] = {}
+        self._msg_source = LocalMessageDefinitionSource()
         if logger is None:
             from rclpy.logging import get_logger
 
             self.logger = get_logger(f"CdrOutputWriter[{pipeline_name}]")
         else:
             self.logger = logger
+        self.attachment_handler = AttachmentHandler(
+            bucket=bucket,
+            pipeline_name=pipeline_name,
+            logger=self.logger,
+        )
 
     async def upload_to_reductstore(
         self, serialized_data: bytes, timestamp_us: int, labels: Dict
@@ -95,11 +103,7 @@ class CdrOutputWriter(OutputWriter):
         timestamp_us = ns_to_us(publish_time)
 
         msg_type_str = self._topic_to_msg_type.get(topic, "unknown")
-        labels = {
-            "type": msg_type_str,
-            "topic": topic,
-            "serialization": "cdr",
-        }
+        labels = {}
 
         loop = get_or_create_event_loop()
         # Stream message if larger than 100KB
@@ -172,6 +176,26 @@ class CdrOutputWriter(OutputWriter):
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register message schema."""
         self._topic_to_msg_type[topic_name] = msg_type_str
+        try:
+            msg_def = self._msg_source.get_full_text(msg_type_str)
+            schema = msg_def.encoded_message_definition
+            if isinstance(schema, bytes):
+                schema = schema.decode("utf-8")
+            self._topic_to_schema[topic_name] = schema
+            loop = get_or_create_event_loop()
+            loop.run_until_complete(
+                self.attachment_handler.ensure_ros_attachment(
+                    entry_name=self.pipeline_name,
+                    msg_type_str=msg_type_str,
+                    topic=topic_name,
+                    schema=schema,
+                )
+            )
+        except Exception as exc:
+            self.logger.warning(
+                f"[{self.pipeline_name}] Failed to resolve schema for "
+                f"'{msg_type_str}': {exc}"
+            )
 
     def flush_on_shutdown(self):
         """Flush the batch on shutdown."""
