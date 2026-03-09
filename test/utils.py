@@ -26,6 +26,7 @@ from rclpy.parameter import Parameter
 from rclpy.publisher import Publisher
 from std_msgs.msg import Float32, Int32, String
 
+from reductstore_agent.attachment import AttachmentHandler
 from reductstore_agent.models import PipelineConfig
 
 
@@ -232,3 +233,21 @@ def remote_bucket_params(pull_frequency_s: int = 60) -> list[tuple[str, str, obj
         Parameter("remote.entry", Parameter.Type.STRING, "remote_config"),
         Parameter("remote.pull_frequency_s", Parameter.Type.INTEGER, pull_frequency_s),
     ]
+
+
+async def fetch_attachments(client, bucket_name: str, entry_name: str):
+    """Fetch normalized '$ros' metadata payload from entry attachments."""
+    bucket = await client.get_bucket(bucket_name)
+    attachments = await bucket.read_attachments(entry_name)
+    return attachments
+
+
+async def write_ros_attachment_record(
+    client, bucket_name: str, entry_name: str, payload: dict
+):
+    """Write one '$ros' attachment metadata record into '<entry>/$meta'."""
+    bucket = await client.get_bucket(bucket_name)
+    await bucket.write_attachments(
+        entry_name=entry_name,
+        attachments={AttachmentHandler.ROS_ATTACHMENT_NAME: payload},
+    )
