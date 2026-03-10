@@ -185,7 +185,6 @@ class CdrOutputWriter(OutputWriter):
             loop.run_until_complete(
                 self.attachment_handler.ensure_ros_attachment(
                     entry_name=self.pipeline_name,
-                    msg_type_str=msg_type_str,
                     topic=topic_name,
                     schema=schema,
                 )

@@ -20,8 +20,8 @@
 
 """Unit tests for attachment handling logic."""
 
+import base64
 import json
-from unittest.mock import AsyncMock, Mock
 
 from reductstore_agent.attachment import AttachmentHandler
 
@@ -49,7 +49,6 @@ def test_build_ros_payload():
     """Test that ROS payload is created and cached in attachment map."""
     handler = AttachmentHandler(bucket=None, pipeline_name="test_pipeline")
     payload = handler.build_ros_payload(
-        msg_type_str="std_msgs/msg/String",
         topic="/test/topic",
         schema="string data",
     )
@@ -57,6 +56,7 @@ def test_build_ros_payload():
         "encoding": AttachmentHandler.ROS_ENCODING,
         "topic": "/test/topic",
         "schema": "string data",
+        "schema_base64": base64.b64encode(b"string data").decode("ascii"),
     }
 
     assert AttachmentHandler.ROS_ATTACHMENT_NAME in handler.attachments
@@ -67,14 +67,13 @@ def test_build_ros_payload():
 
 
 def test_build_ros_payload_has_only_required_keys():
-    """ROS payload should contain only encoding, topic, and schema."""
+    """ROS payload should contain encoding, topic, schema, and schema_base64."""
     handler = AttachmentHandler(bucket=None, pipeline_name="test_pipeline")
     payload = handler.build_ros_payload(
-        msg_type_str="std_msgs/msg/String",
         topic="/test/topic",
         schema="string data",
     )
-    assert set(payload.keys()) == {"encoding", "topic", "schema"}
+    assert set(payload.keys()) == {"encoding", "topic", "schema", "schema_base64"}
     assert "msg_type" not in payload
 
 
@@ -82,14 +81,12 @@ def test_build_ros_payload_updates_cached_ros_attachment():
     """Building payload again should update cached '$ros' attachment bytes."""
     handler = AttachmentHandler(bucket=None, pipeline_name="test_pipeline")
     handler.build_ros_payload(
-        msg_type_str="std_msgs/msg/String",
         topic="/test/topic",
         schema="schema-v1",
     )
     first_payload = handler.attachments[AttachmentHandler.ROS_ATTACHMENT_NAME]
 
     handler.build_ros_payload(
-        msg_type_str="std_msgs/msg/String",
         topic="/test/topic",
         schema="schema-v2",
     )
@@ -98,23 +95,15 @@ def test_build_ros_payload_updates_cached_ros_attachment():
     assert json.loads(second_payload.decode("utf-8"))["schema"] == "schema-v2"
 
 
-def test_upload_attachments_uses_json_compatible_payload():
-    """Upload path should send nested '$ros' payload as JSON-safe dict."""
-    bucket = Mock()
-    bucket.write_attachments = AsyncMock()
-    handler = AttachmentHandler(bucket=bucket, pipeline_name="test_pipeline")
-
-    import asyncio
-
-    asyncio.run(
-        handler.upload_attachments(
-            "entry",
-            {AttachmentHandler.ROS_ATTACHMENT_NAME: b'{"encoding":"cdr"}'},
-        )
+def test_build_ros_payload_omits_text_schema_for_non_utf8_bytes():
+    """Binary schemas should use schema_base64 without a misleading text schema."""
+    handler = AttachmentHandler(bucket=None, pipeline_name="test_pipeline")
+    payload = handler.build_ros_payload(
+        topic="/test/topic",
+        schema=b"\xff\x00\x01",
     )
-
-    _, kwargs = bucket.write_attachments.call_args
-    assert kwargs["entry_name"] == "entry"
-    assert kwargs["attachments"] == {
-        AttachmentHandler.ROS_ATTACHMENT_NAME: '{"encoding":"cdr"}'
+    assert payload == {
+        "encoding": AttachmentHandler.ROS_ENCODING,
+        "topic": "/test/topic",
+        "schema_base64": "/wAB",
     }

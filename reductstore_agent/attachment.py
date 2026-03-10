@@ -66,28 +66,6 @@ class AttachmentHandler:
             default=default_encoder,
         ).encode("utf-8")
 
-    @staticmethod
-    def _json_compatible(data: Any) -> Any:
-        """Convert payload to JSON-compatible values for write_attachments."""
-        if isinstance(data, (bytes, bytearray, memoryview)):
-            raw = bytes(data)
-            try:
-                return raw.decode("utf-8")
-            except UnicodeDecodeError:
-                return base64.b64encode(raw).decode("ascii")
-        if isinstance(data, dict):
-            return {
-                str(key): AttachmentHandler._json_compatible(value)
-                for key, value in data.items()
-            }
-        if isinstance(data, (list, tuple, set)):
-            return [AttachmentHandler._json_compatible(value) for value in data]
-        return data
-
-    async def upload_attachment(self, entry_name: str, attachments: dict[str, Any]):
-        """Upload attachment(s) to ReductStore."""
-        await self.upload_attachments(entry_name, attachments)
-
     async def upload_attachments(self, entry_name: str, attachments: dict[str, Any]):
         """Upload attachment(s) to ReductStore."""
         self.logger.debug(
@@ -95,80 +73,47 @@ class AttachmentHandler:
         )
         await self.bucket.write_attachments(
             entry_name=entry_name,
-            attachments=self._json_compatible(attachments),
+            attachments=attachments,
         )
 
-    async def check_ros_attachment(self, entry_name: str) -> bool:
-        """Check if reserved '$ros' attachment exists for the entry."""
-        try:
-            attachments = await self.bucket.read_attachments(entry_name)
-        except Exception as exc:
-            self.logger.warning(
-                f"[{self.pipeline_name}] Failed to read attachments for "
-                f"entry '{entry_name}': {exc}"
-            )
-            return False
-
-        exists = False
-        if isinstance(attachments, dict):
-            # Newer clients return the ROS payload directly.
-            if {"encoding", "topic", "schema"}.issubset(attachments.keys()):
-                exists = True
-            else:
-                exists = self.ROS_ATTACHMENT_NAME in attachments
-        elif isinstance(attachments, (list, tuple, set)):
-            names: set[str] = set()
-            for item in attachments:
-                if isinstance(item, str):
-                    names.add(item)
-                elif hasattr(item, "name"):
-                    names.add(item.name)
-            exists = self.ROS_ATTACHMENT_NAME in names
-
-        if exists:
-            self.logger.debug(f"ROS attachment found for entry '{entry_name}'")
-            return True
-
-        self.logger.debug(f"No ROS attachment found for entry '{entry_name}'")
-        return False
-
-    def build_ros_payload(self, msg_type_str: str, topic: str, schema: str) -> dict:
+    def build_ros_payload(self, topic: str, schema: str) -> dict:
         """Build and cache metadata payload for '$ros' attachment."""
-        # msg_type_str is kept in signature for backward compatibility with callers.
-        _ = msg_type_str
-        converted_schema = self.schema_converter(msg_type_str, schema)
         payload = {
             "encoding": self.ROS_ENCODING,
             "topic": topic,
-            "schema": converted_schema,
+            "schema_base64": self.schema_base64_converter(schema),
         }
+        converted_schema = self.schema_converter(schema)
+        if converted_schema is not None:
+            payload["schema"] = converted_schema
         self.attachments[self.ROS_ATTACHMENT_NAME] = self._serialize_attachment_data(
             payload
         )
         return payload
 
-    def schema_converter(self, msg_type_str: str, schema: str) -> str:
-        """Convert schema to be JSON deserializable."""
+    def schema_converter(self, schema: str) -> str | None:
+        """Convert schema to readable UTF-8 text when possible."""
         if isinstance(schema, (bytes, bytearray, memoryview)):
             try:
                 return bytes(schema).decode("utf-8")
-            except Exception:
-                return base64.b64encode(bytes(schema)).decode("utf-8")
+            except UnicodeDecodeError:
+                return None
         return str(schema)
+
+    def schema_base64_converter(self, schema: str) -> str:
+        """Convert schema to base64 for unambiguous transport."""
+        if isinstance(schema, str):
+            schema = schema.encode("utf-8")
+        return base64.b64encode(bytes(schema)).decode("ascii")
 
     async def ensure_ros_attachment(
         self,
         entry_name: str,
-        msg_type_str: str,
         topic: str,
         schema: str,
-    ) -> bool:
-        """Upload '$ros' attachment only if it is missing for this entry."""
-        if await self.check_ros_attachment(entry_name):
-            return False
-
+    ) -> None:
+        """Upload '$ros' attachment for this entry, overwriting any existing value."""
         payload = self.build_ros_payload(
-            msg_type_str=msg_type_str,
             topic=topic,
             schema=schema,
         )
@@ -176,5 +121,6 @@ class AttachmentHandler:
             entry_name,
             {self.ROS_ATTACHMENT_NAME: payload},
         )
-        self.logger.info(f"Uploaded '$ros' attachment for entry '{entry_name}'")
-        return True
+        self.logger.info(
+            f"Uploaded '$ros' attachment for entry '{entry_name}'."
+        )

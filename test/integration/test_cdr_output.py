@@ -20,6 +20,7 @@
 
 """Test cdr_output functionality."""
 
+import base64
 import json
 
 from reductstore_agent.attachment import AttachmentHandler
@@ -124,6 +125,9 @@ def test_cdr_writer_builds_ros_attachment_payload(cdr_output_recorder):
     assert payload["topic"] == "/test/topic"
     assert isinstance(payload["schema"], str)
     assert payload["schema"]
+    assert payload["schema_base64"] == base64.b64encode(
+        payload["schema"].encode("utf-8")
+    ).decode("ascii")
 
 
 def test_cdr_writer_writes_ros_attachment_record(
@@ -159,12 +163,15 @@ def test_cdr_writer_writes_ros_attachment_record(
     assert payload["topic"] == "/test/topic"
     assert isinstance(payload["schema"], str)
     assert "string data" in payload["schema"]
+    assert payload["schema_base64"] == base64.b64encode(
+        payload["schema"].encode("utf-8")
+    ).decode("ascii")
 
 
-def test_cdr_writer_does_not_duplicate_ros_attachment_when_present(
+def test_cdr_writer_overwrites_ros_attachment_when_present(
     reduct_client, publisher_node, publisher, cdr_output_recorder
 ):
-    """Repeated schema registration should not create duplicate '$ros' metadata."""
+    """Schema registration should overwrite any pre-existing '$ros' metadata."""
     # Ensure the data entry exists before writing attachment metadata.
     msg = generate_string(size_kb=10)
     publish_and_spin_messages(
@@ -186,6 +193,7 @@ def test_cdr_writer_does_not_duplicate_ros_attachment_when_present(
                 "encoding": "cdr",
                 "topic": "/test/topic",
                 "schema": "seed-schema",
+                "schema_base64": base64.b64encode(b"seed-schema").decode("ascii"),
             },
         )
     )
@@ -202,4 +210,8 @@ def test_cdr_writer_does_not_duplicate_ros_attachment_when_present(
     payload = extract_ros_payload(payload)
     assert payload["encoding"] == "cdr"
     assert payload["topic"] == "/test/topic"
-    assert payload["schema"] == "seed-schema"
+    assert payload["schema"] != "seed-schema"
+    assert "string data" in payload["schema"]
+    assert payload["schema_base64"] == base64.b64encode(
+        payload["schema"].encode("utf-8")
+    ).decode("ascii")
