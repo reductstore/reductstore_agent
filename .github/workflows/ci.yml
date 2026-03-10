@@ -112,6 +112,7 @@ jobs:
           DOCKER_RUN_OPTS: "--network=host"
           ADDITIONAL_DEBS: >
             python3-pip
+            git
             ros-rolling-sensor-msgs
             ros-rolling-geometry-msgs
             ros-rolling-rosbag2-py
@@ -120,5 +121,5 @@ jobs:
             pip install --force-reinstall --ignore-installed --break-system-packages \
               mcap \
               mcap-ros2-support \
-              reduct-py \
+              git+https://github.com/reductstore/reduct-py.git@main \
               flake8==7.0.0
