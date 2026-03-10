@@ -90,7 +90,7 @@ jobs:
             pip install --break-system-packages \
               mcap \
               mcap-ros2-support \
-              reduct-py \
+              git+https://github.com/reductstore/reduct-py.git@main \
               flake8==7.0.0
 
   ros2-tests-rolling:
