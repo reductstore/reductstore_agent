@@ -82,6 +82,7 @@ jobs:
           DOCKER_RUN_OPTS: "--network=host"
           ADDITIONAL_DEBS: >
             python3-pip
+            git
             ros-jazzy-sensor-msgs
             ros-jazzy-geometry-msgs
             ros-jazzy-rosbag2-py
