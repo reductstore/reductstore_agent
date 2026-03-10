@@ -121,6 +121,4 @@ class AttachmentHandler:
             entry_name,
             {self.ROS_ATTACHMENT_NAME: payload},
         )
-        self.logger.info(
-            f"Uploaded '$ros' attachment for entry '{entry_name}'."
-        )
+        self.logger.info(f"Uploaded '$ros' attachment for entry '{entry_name}'.")
