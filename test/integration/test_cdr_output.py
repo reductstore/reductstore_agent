@@ -26,10 +26,12 @@ from reductstore_agent.attachment import AttachmentHandler
 from reductstore_agent.utils import get_or_create_event_loop
 
 from ..utils import (
+    extract_ros_payload,
     fetch_and_count_records,
     fetch_attachments,
     generate_string,
     publish_and_spin_messages,
+    write_ros_attachment_record,
 )
 
 
@@ -108,7 +110,7 @@ def test_cdr_output_batch_flushed_on_shutdown(
 
 
 def test_cdr_writer_builds_ros_attachment_payload(cdr_output_recorder):
-    """CDR writer should prepare '$ros' attachment payload during schema registration."""
+    """CDR writer should prepare '$ros' attachment payload schema."""
     state = cdr_output_recorder.pipeline_states["test"]
     state.writer.register_message_schema("/test/topic", "std_msgs/msg/String")
 
@@ -148,47 +150,56 @@ def test_cdr_writer_writes_ros_attachment_record(
         fetch_and_count_records(reduct_client, BUCKET_NAME, ENTRY_NAME)
     )
 
-    # assert len(count) == 3
+    assert len(count) == 3
     payload = loop.run_until_complete(
         fetch_attachments(reduct_client, BUCKET_NAME, ENTRY_NAME)
     )
+    payload = extract_ros_payload(payload)
     assert payload["encoding"] == "cdr"
     assert payload["topic"] == "/test/topic"
     assert isinstance(payload["schema"], str)
-    assert payload["schema"]
+    assert "string data" in payload["schema"]
 
 
-# def test_cdr_writer_does_not_duplicate_ros_attachment_when_present(
-#     reduct_client, publisher_node, publisher, cdr_output_recorder
-# ):
-#     """Repeated schema registration should not create duplicate '$ros' metadata."""
-#     # Ensure the data entry exists before writing attachment metadata.
-#     msg = generate_string(size_kb=10)
-#     publish_and_spin_messages(
-#         publisher_node,
-#         publisher,
-#         cdr_output_recorder,
-#         msg,
-#         wait_for_subscription=True,
-#         n_msg=1,
-#     )
+def test_cdr_writer_does_not_duplicate_ros_attachment_when_present(
+    reduct_client, publisher_node, publisher, cdr_output_recorder
+):
+    """Repeated schema registration should not create duplicate '$ros' metadata."""
+    # Ensure the data entry exists before writing attachment metadata.
+    msg = generate_string(size_kb=10)
+    publish_and_spin_messages(
+        publisher_node,
+        publisher,
+        cdr_output_recorder,
+        msg,
+        wait_for_subscription=True,
+        n_msg=1,
+    )
 
-#     loop = get_or_create_event_loop()
-#     loop.run_until_complete(
-#         write_ros_attachment_record(
-#             reduct_client,
-#             "test_bucket",
-#             "test",
-#             {
-#                 "encoding": "cdr",
-#                 "topic": "/test/topic",
-#                 "schema": "seed-schema",
-#             },
-#         )
-#     )
+    loop = get_or_create_event_loop()
+    loop.run_until_complete(
+        write_ros_attachment_record(
+            reduct_client,
+            "test_bucket",
+            "test",
+            {
+                "encoding": "cdr",
+                "topic": "/test/topic",
+                "schema": "seed-schema",
+            },
+        )
+    )
 
-#     state = cdr_output_recorder.pipeline_states["test"]
-#     writer = state.writer
+    state = cdr_output_recorder.pipeline_states["test"]
+    writer = state.writer
 
-#     writer.register_message_schema("/test/topic", "std_msgs/msg/String")
-#     writer.register_message_schema("/test/topic", "std_msgs/msg/String")
+    writer.register_message_schema("/test/topic", "std_msgs/msg/String")
+    writer.register_message_schema("/test/topic", "std_msgs/msg/String")
+
+    payload = loop.run_until_complete(
+        fetch_attachments(reduct_client, "test_bucket", "test")
+    )
+    payload = extract_ros_payload(payload)
+    assert payload["encoding"] == "cdr"
+    assert payload["topic"] == "/test/topic"
+    assert payload["schema"] == "seed-schema"

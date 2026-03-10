@@ -171,7 +171,7 @@ class ConfigManager:
         elif new_config == self.node.pipeline_configs:
             self.node.log_info(lambda: "No changes in pipeline configuration.")
         else:
-            await self.node.check_diff_pipelines(new_config)
+            await self.node.pipeline_manager.check_diff_pipelines(new_config)
             self.node.pipeline_configs = new_config
             self.save_backup_yml()
             self.node.log_info(

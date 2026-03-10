@@ -25,8 +25,6 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from reductstore_agent.recorder import Recorder
-
 
 def generate_string(size_kb: int) -> str:
     """Generate a string of size_kb kilobytes."""
@@ -71,14 +69,14 @@ def test_recorder_timer_trigger(monkeypatch, basic_recorder):
     """Test that the Recorder triggers segment reset on timer expiration."""
     uploads = []
 
-    def mock_upload_pipeline(
-        _,
-        pipeline_name,
-        state,
-    ):
+    def mock_upload_pipeline(pipeline_name, state):
         uploads.append((pipeline_name, state))
 
-    monkeypatch.setattr(Recorder, "upload_pipeline", mock_upload_pipeline)
+    monkeypatch.setattr(
+        basic_recorder.pipeline_manager,
+        "upload_pipeline",
+        mock_upload_pipeline,
+    )
 
     # Wait for the timer to trigger
     rclpy.spin_once(basic_recorder, timeout_sec=1.1)

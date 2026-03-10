@@ -102,7 +102,6 @@ class CdrOutputWriter(OutputWriter):
 
         timestamp_us = ns_to_us(publish_time)
 
-        msg_type_str = self._topic_to_msg_type.get(topic, "unknown")
         labels = {}
 
         loop = get_or_create_event_loop()

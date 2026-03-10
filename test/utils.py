@@ -251,3 +251,10 @@ async def write_ros_attachment_record(
         entry_name=entry_name,
         attachments={AttachmentHandler.ROS_ATTACHMENT_NAME: payload},
     )
+
+
+def extract_ros_payload(attachments):
+    """Normalize '$ros' payload returned by different Reduct client versions."""
+    if "$ros" in attachments:
+        return attachments["$ros"]
+    return attachments
