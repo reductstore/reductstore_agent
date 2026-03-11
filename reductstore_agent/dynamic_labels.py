@@ -53,7 +53,7 @@ class LabelStateTracker:
         if cfg is None:
             if self.logger:
                 self.logger.info(
-                    "Cannot read config for topic " f"'{topic_name}'. Returning ..."
+                    "Cannot read config for topic " f"'{topic_name}'. Returning."
                 )
             return
 

@@ -24,7 +24,9 @@ from typing import Any, Dict
 
 from rclpy.serialization import serialize_message
 from reduct import Batch, Bucket
+from rosbag2_py import LocalMessageDefinitionSource
 
+from ..attachment import AttachmentHandler
 from ..dynamic_labels import LabelStateTracker
 from ..utils import get_or_create_event_loop, metadata_size, ns_to_us
 from .base import OutputWriter
@@ -54,14 +56,20 @@ class CdrOutputWriter(OutputWriter):
         self._is_flushing = False
         self._batch_metadata_size: int = 0
         self.label_tracker = label_tracker
-
         self._topic_to_msg_type: Dict[str, str] = {}
+        self._topic_to_schema: Dict[str, str] = {}
+        self._msg_source = LocalMessageDefinitionSource()
         if logger is None:
             from rclpy.logging import get_logger
 
             self.logger = get_logger(f"CdrOutputWriter[{pipeline_name}]")
         else:
             self.logger = logger
+        self.attachment_handler = AttachmentHandler(
+            bucket=bucket,
+            pipeline_name=pipeline_name,
+            logger=self.logger,
+        )
 
     async def upload_to_reductstore(
         self, serialized_data: bytes, timestamp_us: int, labels: Dict
@@ -94,12 +102,7 @@ class CdrOutputWriter(OutputWriter):
 
         timestamp_us = ns_to_us(publish_time)
 
-        msg_type_str = self._topic_to_msg_type.get(topic, "unknown")
-        labels = {
-            "type": msg_type_str,
-            "topic": topic,
-            "serialization": "cdr",
-        }
+        labels = {}
 
         loop = get_or_create_event_loop()
         # Stream message if larger than 100KB
@@ -115,15 +118,19 @@ class CdrOutputWriter(OutputWriter):
         self.append_record(timestamp_us, serialized_data, labels)
 
         if self._batch_size_bytes >= self._flush_threshold_bytes:
-            self.logger.info("Threshold triggered")
+            self.logger.info(f"[{self.pipeline_name}] Threshold triggered.")
             loop.run_until_complete(self.flush_and_upload_batch())
 
         elif len(self._batch) >= BATCH_MAX_RECORDS:
-            self.logger.info("Exceeded max records of batch. Uploading batch.")
+            self.logger.info(
+                f"[{self.pipeline_name}] Exceeded max records in batch. Uploading."
+            )
             loop.run_until_complete(self.flush_and_upload_batch())
 
         elif self._batch_metadata_size >= BATCH_MAX_METADATA_SIZE:
-            self.logger.info("Exceeded metadata threshold. Uploading batch.")
+            self.logger.info(
+                f"[{self.pipeline_name}] Exceeded metadata threshold. Uploading."
+            )
             loop.run_until_complete(self.flush_and_upload_batch())
 
     def append_record(
@@ -142,7 +149,7 @@ class CdrOutputWriter(OutputWriter):
         if self._batch_size_bytes == 0:
             return
         if self._is_flushing:
-            self.logger.info("Already flushing. Returning ...")
+            self.logger.info(f"[{self.pipeline_name}] Already flushing. Skipping.")
             return
 
         self._is_flushing = True
@@ -155,17 +162,38 @@ class CdrOutputWriter(OutputWriter):
                 entry_name=self.pipeline_name, batch=batch_to_send
             )
             if errors:
-                self.logger.warning("Error with writing batch to bucket.")
+                self.logger.warning(
+                    f"[{self.pipeline_name}] Error while writing batch to bucket."
+                )
             else:
-                self.logger.info("Uploaded batch.")
+                self.logger.info(f"[{self.pipeline_name}] Uploaded batch.")
         except Exception as exc:
-            self.logger.error(f"[{self.pipeline_name}]Failed to upload batch: {exc}")
+            self.logger.error(f"[{self.pipeline_name}] Failed to upload batch: {exc}")
         finally:
             self._is_flushing = False
 
     def register_message_schema(self, topic_name: str, msg_type_str: str):
         """Register message schema."""
         self._topic_to_msg_type[topic_name] = msg_type_str
+        try:
+            msg_def = self._msg_source.get_full_text(msg_type_str)
+            schema = msg_def.encoded_message_definition
+            if isinstance(schema, bytes):
+                schema = schema.decode("utf-8")
+            self._topic_to_schema[topic_name] = schema
+            loop = get_or_create_event_loop()
+            loop.run_until_complete(
+                self.attachment_handler.ensure_ros_attachment(
+                    entry_name=self.pipeline_name,
+                    topic=topic_name,
+                    schema=schema,
+                )
+            )
+        except Exception as exc:
+            self.logger.warning(
+                f"[{self.pipeline_name}] Failed to resolve schema for "
+                f"'{msg_type_str}': {exc}"
+            )
 
     def flush_on_shutdown(self):
         """Flush the batch on shutdown."""
