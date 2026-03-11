@@ -41,4 +41,5 @@ Changelog for package reductstore_agent
   Modified snap distribution to include both agent and replayer components, and added install hook to set default config and disable replayer by default
 * Merge pull request `#54 <https://github.com/reductstore/reductstore_agent/pull/54>`_ from reductstore/fix-replayer-path
   Fix path to demo bag not accepting arguments and not working in snap distribion, and throttle replayer to reduce CPU load
+* Merge pull request `#56 <https://github.com/reductstore/reductstore_agent/pull/56>`_ from reductstore/support-ros-attachment 
   Add support for ROS Attachment and refactored Recorder class 
