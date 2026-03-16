@@ -39,11 +39,8 @@ class RosbagReplayer(Node):
         """Initialize the RosbagReplayer node."""
         super().__init__("rosbag_replayer")
 
-        # Bag path parameter and validation
-        # Declare the ROS parameter first
         bag_path_param = self.declare_parameter("bag_path", DEFAULT_BAG_PATH)
 
-        # Use provided argument if given, otherwise use ROS parameter
         if bag_path is not None:
             self.bag_path = bag_path
         else:
@@ -52,23 +49,31 @@ class RosbagReplayer(Node):
         if not os.path.exists(self.bag_path):
             raise FileNotFoundError(f"Bag path does not exist: {self.bag_path}")
 
-        # Playback speed control
         playback_rate_param = self.declare_parameter("playback_rate", 1.0)
         self.playback_rate = playback_rate_param.get_parameter_value().double_value
         if self.playback_rate <= 0:
             raise ValueError("playback_rate must be positive")
 
-        # Initialize reader and publishers
         self._open_reader()
         self._reset_playback_state()
         self.topic_types = {
             topic.name: topic.type for topic in self.reader.get_all_topics_and_types()
         }
         self._topic_publishers = {}
+        self._topic_msg_classes = {}
+        self._skipped_topics = {}
         self.qos_profile = QoSProfile(depth=10)
         self._create_publishers()
 
-        # Testing purposes
+        if self._skipped_topics:
+            skipped = ", ".join(
+                f"{topic} ({pkg})" for topic, pkg in self._skipped_topics.items()
+            )
+            self.get_logger().warning(
+                f"Skipping {len(self._skipped_topics)} topic(s) due to missing "
+                f"message packages: {skipped}"
+            )
+
         self._stop_replaying = False
 
     def _open_reader(self):
@@ -86,15 +91,15 @@ class RosbagReplayer(Node):
         while rclpy.ok():
             self.get_logger().info("Starting bag replay...")
             while self.reader.has_next() and not self._stop_replaying:
-                # Read and deserialize the next message
                 topic_name, msg, timestamp = self.read_and_deserialize_message()
-                if msg is None:
+                if topic_name is None:
                     break
 
-                # Throttle playback to respect recorded timing
-                self._throttle_playback(timestamp)
+                # Topic intentionally skipped due to missing dependency
+                if msg is None:
+                    continue
 
-                # Update timestamp and publish message
+                self._throttle_playback(timestamp)
                 msg = self.update_message_timestamp(msg)
                 self.publish_message(topic_name, msg)
                 self.get_logger().debug(
@@ -102,7 +107,6 @@ class RosbagReplayer(Node):
                 )
 
             if not self._stop_replaying:
-                # Replayer reached end of bag, restart
                 self.get_logger().info("Reached end of bag, restarting...")
                 self._open_reader()
                 self._reset_playback_state()
@@ -128,39 +132,55 @@ class RosbagReplayer(Node):
         if wait_ns > 0:
             time.sleep(wait_ns / 1_000_000_000)
         else:
-            # Minimum yield to prevent CPU spinning when behind schedule
             time.sleep(0.0001)
 
     def _create_publishers(self):
-        """Create publishers for each topic in the rosbag."""
-        try:
-            for topic_name, topic_type in self.topic_types.items():
-                pkg, _, msg_type = topic_type.partition("/msg/")
+        """Create publishers for each supported topic in the rosbag."""
+        for topic_name, topic_type in self.topic_types.items():
+            pkg, _, msg_type = topic_type.partition("/msg/")
+            try:
                 module = __import__(f"{pkg}.msg", fromlist=[msg_type])
                 msg_class = getattr(module, msg_type)
-                self.get_logger().info(
-                    f"Creating publisher for {topic_name} with type"
-                    f" {msg_class} and QoS {type(self.qos_profile)}"
+            except ModuleNotFoundError:
+                self._skipped_topics[topic_name] = pkg
+                self.get_logger().warning(
+                    f"Skipping topic {topic_name}: missing message package {pkg}"
                 )
-                publisher = self.create_publisher(
-                    msg_class, topic_name, self.qos_profile
+                continue
+            except AttributeError:
+                self._skipped_topics[topic_name] = pkg
+                self.get_logger().warning(
+                    f"Skipping topic {topic_name}: message type {topic_type} "
+                    f"not found in package {pkg}"
                 )
-                self._topic_publishers[topic_name] = publisher
-        except Exception as e:
-            self.get_logger().error(f"Failed to create publishers: {e}")
-            raise e
+                continue
+
+            self.get_logger().info(
+                f"Creating publisher for {topic_name} with type "
+                f"{msg_class} and QoS {type(self.qos_profile)}"
+            )
+            publisher = self.create_publisher(msg_class, topic_name, self.qos_profile)
+            self._topic_publishers[topic_name] = publisher
+            self._topic_msg_classes[topic_name] = msg_class
 
     def read_and_deserialize_message(self):
         """Read and deserialize the next message from the rosbag."""
         if not self.reader.has_next():
             return None, None, None
-        topic_name, data, timestamp = self.reader.read_next()
-        topic_type = self.topic_types[topic_name]
-        pkg, _, msg_type = topic_type.partition("/msg/")
-        module = __import__(f"{pkg}.msg", fromlist=[msg_type])
-        msg_class = getattr(module, msg_type)
-        msg = deserialize_message(data, msg_class)
 
+        topic_name, data, timestamp = self.reader.read_next()
+
+        if topic_name in self._skipped_topics:
+            return topic_name, None, timestamp
+
+        msg_class = self._topic_msg_classes.get(topic_name)
+        if msg_class is None:
+            self.get_logger().warning(
+                f"No message class available for topic {topic_name}, skipping message"
+            )
+            return topic_name, None, timestamp
+
+        msg = deserialize_message(data, msg_class)
         return topic_name, msg, timestamp
 
     def update_message_timestamp(self, msg):

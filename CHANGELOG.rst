@@ -43,3 +43,5 @@ Changelog for package reductstore_agent
   Fix path to demo bag not accepting arguments and not working in snap distribion, and throttle replayer to reduce CPU load
 * Merge pull request `#56 <https://github.com/reductstore/reductstore_agent/pull/56>`_ from reductstore/support-ros-attachment 
   Add support for ROS Attachment and refactored Recorder class 
+* Merge pull request `#57 <https://github.com/reductstore/reductstore_agent/pull/57>`_ from reductstore/fix-replayer-crashes
+  Updated SDK pull, fix replayer crash when missing dependencies, updated snap distribution to include common ROS2 Message types

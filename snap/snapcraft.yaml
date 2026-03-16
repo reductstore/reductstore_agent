@@ -41,6 +41,7 @@ parts:
     build-packages:
       - python3-venv
       - python3-pip
+      - git
     stage-packages:
       - ros-jazzy-ros2cli
       - ros-jazzy-ros2run
@@ -51,6 +52,8 @@ parts:
       - ros-jazzy-sensor-msgs
       - ros-jazzy-geometry-msgs
       - ros-jazzy-nav-msgs
+      - ros-jazzy-tf2-msgs
+      - ros-jazzy-tf2-geometry-msgs
     override-build: |
       set -e
 
@@ -61,7 +64,8 @@ parts:
       source venv/bin/activate
 
       # install python deps into venv
-      pip install -U reduct-py mcap mcap-ros2-support numpy
+      pip install -U mcap mcap-ros2-support numpy
+      pip install --break-system-packages git+https://github.com/reductstore/reduct-py.git@main
 
       # copy venv site-packages into snap stage
       cp -a venv/lib/python3.*/site-packages/* $CRAFT_PART_INSTALL/usr/lib/python3/dist-packages/
