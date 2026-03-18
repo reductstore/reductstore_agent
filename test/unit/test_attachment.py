@@ -69,7 +69,7 @@ def test_build_ros_payload():
 
 
 def test_build_ros_payload_has_only_required_keys():
-    """ROS payload should contain encoding, topic, schema_name, schema, and schema_base64."""
+    """ROS payload should include the expected ROS attachment fields."""
     handler = AttachmentHandler(bucket=None, pipeline_name="test_pipeline")
     payload = handler.build_ros_payload(
         topic="/test/topic",
