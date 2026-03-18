@@ -51,10 +51,12 @@ def test_build_ros_payload():
     payload = handler.build_ros_payload(
         topic="/test/topic",
         schema="string data",
+        schema_name="std_msgs/msg/String",
     )
     assert payload == {
         "encoding": AttachmentHandler.ROS_ENCODING,
         "topic": "/test/topic",
+        "schema_name": "std_msgs/msg/String",
         "schema": "string data",
         "schema_base64": base64.b64encode(b"string data").decode("ascii"),
     }
@@ -67,14 +69,20 @@ def test_build_ros_payload():
 
 
 def test_build_ros_payload_has_only_required_keys():
-    """ROS payload should contain encoding, topic, schema, and schema_base64."""
+    """ROS payload should include the expected ROS attachment fields."""
     handler = AttachmentHandler(bucket=None, pipeline_name="test_pipeline")
     payload = handler.build_ros_payload(
         topic="/test/topic",
         schema="string data",
+        schema_name="std_msgs/msg/String",
     )
-    assert set(payload.keys()) == {"encoding", "topic", "schema", "schema_base64"}
-    assert "msg_type" not in payload
+    assert set(payload.keys()) == {
+        "encoding",
+        "topic",
+        "schema_name",
+        "schema",
+        "schema_base64",
+    }
 
 
 def test_build_ros_payload_updates_cached_ros_attachment():
@@ -83,16 +91,20 @@ def test_build_ros_payload_updates_cached_ros_attachment():
     handler.build_ros_payload(
         topic="/test/topic",
         schema="schema-v1",
+        schema_name="pkg/msg/V1",
     )
     first_payload = handler.attachments[AttachmentHandler.ROS_ATTACHMENT_NAME]
 
     handler.build_ros_payload(
         topic="/test/topic",
         schema="schema-v2",
+        schema_name="pkg/msg/V2",
     )
     second_payload = handler.attachments[AttachmentHandler.ROS_ATTACHMENT_NAME]
     assert first_payload != second_payload
-    assert json.loads(second_payload.decode("utf-8"))["schema"] == "schema-v2"
+    decoded_payload = json.loads(second_payload.decode("utf-8"))
+    assert decoded_payload["schema"] == "schema-v2"
+    assert decoded_payload["schema_name"] == "pkg/msg/V2"
 
 
 def test_build_ros_payload_omits_text_schema_for_non_utf8_bytes():
@@ -101,9 +113,11 @@ def test_build_ros_payload_omits_text_schema_for_non_utf8_bytes():
     payload = handler.build_ros_payload(
         topic="/test/topic",
         schema=b"\xff\x00\x01",
+        schema_name="pkg/msg/Binary",
     )
     assert payload == {
         "encoding": AttachmentHandler.ROS_ENCODING,
         "topic": "/test/topic",
+        "schema_name": "pkg/msg/Binary",
         "schema_base64": "/wAB",
     }

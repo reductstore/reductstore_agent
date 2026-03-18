@@ -187,6 +187,7 @@ class CdrOutputWriter(OutputWriter):
                     entry_name=self.pipeline_name,
                     topic=topic_name,
                     schema=schema,
+                    schema_name=msg_type_str,
                 )
             )
         except Exception as exc:
