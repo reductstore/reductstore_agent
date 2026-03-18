@@ -76,13 +76,17 @@ class AttachmentHandler:
             attachments=attachments,
         )
 
-    def build_ros_payload(self, topic: str, schema: str) -> dict:
+    def build_ros_payload(
+        self, topic: str, schema: str, schema_name: str | None = None
+    ) -> dict:
         """Build and cache metadata payload for '$ros' attachment."""
         payload = {
             "encoding": self.ROS_ENCODING,
             "topic": topic,
             "schema_base64": self.schema_base64_converter(schema),
         }
+        if schema_name is not None:
+            payload["schema_name"] = schema_name
         converted_schema = self.schema_converter(schema)
         if converted_schema is not None:
             payload["schema"] = converted_schema
@@ -111,11 +115,13 @@ class AttachmentHandler:
         entry_name: str,
         topic: str,
         schema: str,
+        schema_name: str | None = None,
     ) -> None:
         """Upload '$ros' attachment for this entry, overwriting any existing value."""
         payload = self.build_ros_payload(
             topic=topic,
             schema=schema,
+            schema_name=schema_name,
         )
         await self.upload_attachments(
             entry_name,

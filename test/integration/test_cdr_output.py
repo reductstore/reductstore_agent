@@ -123,6 +123,7 @@ def test_cdr_writer_builds_ros_attachment_payload(cdr_output_recorder):
     )
     assert payload["encoding"] == "cdr"
     assert payload["topic"] == "/test/topic"
+    assert payload["schema_name"] == "std_msgs/msg/String"
     assert isinstance(payload["schema"], str)
     assert payload["schema"]
     assert payload["schema_base64"] == base64.b64encode(
@@ -161,6 +162,7 @@ def test_cdr_writer_writes_ros_attachment_record(
     payload = extract_ros_payload(payload)
     assert payload["encoding"] == "cdr"
     assert payload["topic"] == "/test/topic"
+    assert payload["schema_name"] == "std_msgs/msg/String"
     assert isinstance(payload["schema"], str)
     assert "string data" in payload["schema"]
     assert payload["schema_base64"] == base64.b64encode(
@@ -192,6 +194,7 @@ def test_cdr_writer_overwrites_ros_attachment_when_present(
             {
                 "encoding": "cdr",
                 "topic": "/test/topic",
+                "schema_name": "seed/msg/Type",
                 "schema": "seed-schema",
                 "schema_base64": base64.b64encode(b"seed-schema").decode("ascii"),
             },
@@ -210,6 +213,7 @@ def test_cdr_writer_overwrites_ros_attachment_when_present(
     payload = extract_ros_payload(payload)
     assert payload["encoding"] == "cdr"
     assert payload["topic"] == "/test/topic"
+    assert payload["schema_name"] == "std_msgs/msg/String"
     assert payload["schema"] != "seed-schema"
     assert "string data" in payload["schema"]
     assert payload["schema_base64"] == base64.b64encode(
